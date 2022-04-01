@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug",
+      "program": "${workspaceRoot}/${fileBasenameNoExtension}",
+      // Run with O2 and C++20
+      "sourceLanguages": [
+        "cpp"
+      ],
+      "args": [
+        // "--mode", "calculate-best-opening",
+        "--verbose",
+        // "-n", "10",
+      ],
+      "cwd": "${workspaceRoot}",
+      "terminal": "integrated",
+      "preLaunchTask": "C/C++: g++ build active file",
+    },
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "stopAtEntry": true,
+      "cwd": "/Users/isaacbreen/Documents/Projects/Wordle",
+      "environment": [],
+      "program": "/Users/isaacbreen/Documents/Projects/Wordle/build/Debug/outDebug",
+      "internalConsoleOptions": "openOnSessionStart",
+      "MIMode": "gdb",
+      "terminal": "external",
+    }
+  ]
+}
