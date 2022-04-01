@@ -94,18 +94,6 @@ bool guess_is_useless(string guess, set<char> eliminated_letters) {
 }
 
 vector<string> get_useful_guesses(vector<string> guesses, set<char> eliminated_letters) {
-    // vector<bool> is_useful(guesses.size(), false);
-    // #pragma omp parallel for
-    // for (int i = 0; i < int(guesses.size()); i++) {
-    //     is_useful[i] = !guess_is_useless(guesses[i], eliminated_letters);
-    // }
-    // vector<string> useful_guesses;
-    // for (int i = 0; i < int(guesses.size()); i++) {
-    //     if (is_useful[i]) {
-    //         useful_guesses.push_back(guesses[i]);
-    //     }
-    // }
-    // return useful_guesses;
     vector<string> useful_guesses;
     for (string guess : guesses) {
         if (!guess_is_useless(guess, eliminated_letters)) {
