@@ -16,7 +16,7 @@
 #include "tqdm/tqdm.h"
 #include <omp.h>
 // For timing
-#include <ctime>
+// #include <ctime>
 
 using namespace std;
 using namespace nlohmann;
@@ -158,7 +158,7 @@ double get_expected_information_gain(string guess, vector<string> wordlist) {
 }
 
 tuple<vector<string>, double> get_recommendation(vector<string> wordlist, vector<string> valid_guesses) {
-    auto t0 = chrono::high_resolution_clock::now();
+    // auto t0 = chrono::high_resolution_clock::now();
     vector<double> expected_information_gains(valid_guesses.size(), 0);
     #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < int(valid_guesses.size()); i++) {
@@ -183,9 +183,9 @@ tuple<vector<string>, double> get_recommendation(vector<string> wordlist, vector
             words_with_highest_information_gain.push_back(valid_guesses[i]);
         }
     }
-    auto t1 = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::microseconds>(t1 - t0).count();
-    cout << "get_recommendation took " << duration << " microseconds" << endl;
+    // auto t1 = chrono::high_resolution_clock::now();
+    // auto duration = chrono::duration_cast<chrono::microseconds>(t1 - t0).count();
+    // cout << "get_recommendation took " << duration << " microseconds" << endl;
     return make_tuple(words_with_highest_information_gain, highest_information_gain);
 }
 
@@ -392,6 +392,20 @@ public:
             hint = prompt_for_result();
         } else {
             hint = make_guess_hint(word_gt, guess);
+            // Print the letters of the hint in their respective font colour
+            cout << "Hint: ";
+            for (int i = 0; i < hint.length(); i++) {
+                if (hint[i] == 'g') {
+                    // Green
+                    cout <<
+                } else if (hint[i] == 'y') {
+                    // Yellow background
+                    cout << "\033[43m" << hint[i] << "\033[0m";
+                } else {
+                    // Gray background
+                    cout << "\033[47m" << hint[i] << "\033[0m";
+                }
+            }
         }
         // cout << pretty_print_hint(guess, hint);
         update(guess, hint);
@@ -699,6 +713,7 @@ int main(int argc, char** argv) {
         if (arg == "--mode") {
             mode = argv[i+1];
         } else if (arg == "--word") {
+
             word_gt = argv[i+1];
         } else if (arg == "--num_guesses") {
             num_guesses = stoi(argv[i+1]);
