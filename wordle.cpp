@@ -16,7 +16,7 @@
 #include "tqdm/tqdm.h"
 #include <omp.h>
 // For timing
-// #include <ctime>
+#include <ctime>
 
 using namespace std;
 using namespace nlohmann;
@@ -83,6 +83,23 @@ string pretty_print_hint(string guess, string hint) {
     return guess + " -> " + hint;
 }
 
+string hint_to_string(string hint) {
+    stringstream ss;
+    for (int i = 0; i < hint.length(); i++) {
+        if (hint[i] == 'g') {
+            // Green
+            ss << "\033[32m" << hint[i] << "\033[0m";
+        } else if (hint[i] == 'y') {
+            // Yellow
+            cout << "\033[33m" << hint[i] << "\033[0m";
+        } else {
+            // Gray
+            ss << "\033[37m" << hint[i] << "\033[0m";
+        }
+    }
+    return ss.str();
+}
+
 bool guess_is_useless(string guess, set<char> eliminated_letters) {
     // A guess is useless if all its letters have been eliminated already
     for (char letter : guess) {
@@ -134,7 +151,7 @@ bool word_is_compatible_with_guess_hint(string word_hyp, string guess, string gu
 }
 
 // Get all words compatible with a guess and guess result
-vector<string> get_compatible_words(string guess, string guess_hint, vector<string> wordlist) {
+vector<string> get_compatible_words(string guess, string guess_hint, vector<string>& wordlist) {
     vector<string> compatible_words;
     for (auto word_hyp : wordlist) {
         if (word_is_compatible_with_guess_hint(word_hyp, guess, guess_hint)) {
@@ -142,6 +159,26 @@ vector<string> get_compatible_words(string guess, string guess_hint, vector<stri
         }
     }
     return compatible_words;
+}
+
+vector<int> get_compatible_word_indices(string guess, string guess_hint, vector<string>& wordlist) {
+    vector<int> compatible_word_indices;
+    for (int i = 0; i < int(wordlist.size()); i++) {
+        if (word_is_compatible_with_guess_hint(wordlist[i], guess, guess_hint)) {
+            compatible_word_indices.push_back(i);
+        }
+    }
+    return compatible_word_indices;
+}
+
+int get_num_compatible_words(string guess, string guess_hint, vector<string>& wordlist) {
+    int num_compatible_words = 0;
+    for (auto word_hyp : wordlist) {
+        if (word_is_compatible_with_guess_hint(word_hyp, guess, guess_hint)) {
+            num_compatible_words++;
+        }
+    }
+    return num_compatible_words;
 }
 
 double get_expected_information_gain(string guess, vector<string> wordlist) {
@@ -158,19 +195,17 @@ double get_expected_information_gain(string guess, vector<string> wordlist) {
 }
 
 tuple<vector<string>, double> get_recommendation(vector<string> wordlist, vector<string> valid_guesses) {
-    // auto t0 = chrono::high_resolution_clock::now();
-    vector<double> expected_information_gains(valid_guesses.size(), 0);
+    auto t0 = chrono::high_resolution_clock::now();
+    vector<double> expected_information_gains(valid_guesses.size(), false);
     #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < int(valid_guesses.size()); i++) {
-        auto guess_candidate = valid_guesses[i];
-        double expected_information_gain = 0;
-        double base_entropy = log2(wordlist.size());
-        for (auto word_hyp : wordlist) {
-            vector<string> compatible_words = get_compatible_words(guess_candidate, make_guess_hint(word_hyp, guess_candidate), wordlist);
-            double entropy_after_guess = log2(compatible_words.size());
-            expected_information_gain += (base_entropy - entropy_after_guess);
+    for (auto word_hyp : wordlist) {
+        for (int i = 0; i < int(valid_guesses.size()); i++) {
+            auto guess_candidate = valid_guesses[i];
+            int num_compatible_words = get_num_compatible_words(guess_candidate, make_guess_hint(word_hyp, guess_candidate), wordlist);
+            double base_entropy = log2(wordlist.size());
+            double entropy_after_guess = log2(num_compatible_words);
+            expected_information_gains[i] += (base_entropy - entropy_after_guess) / wordlist.size();
         }
-        expected_information_gains[i] = expected_information_gain / wordlist.size();
     }
     // Find the best guess(es) for information gain. Return a list of guesses if there are multiple, otherwise a single guess.
     double highest_information_gain = 0;
@@ -183,9 +218,9 @@ tuple<vector<string>, double> get_recommendation(vector<string> wordlist, vector
             words_with_highest_information_gain.push_back(valid_guesses[i]);
         }
     }
-    // auto t1 = chrono::high_resolution_clock::now();
-    // auto duration = chrono::duration_cast<chrono::microseconds>(t1 - t0).count();
-    // cout << "get_recommendation took " << duration << " microseconds" << endl;
+    auto t1 = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::microseconds>(t1 - t0).count();
+    cout << "get_recommendation took " << duration << " microseconds" << endl;
     return make_tuple(words_with_highest_information_gain, highest_information_gain);
 }
 
@@ -243,6 +278,7 @@ public:
     vector<string> valid_guesses;
     vector<string> wordlist_remaining;
     vector<string> valid_guesses_remaining;
+    bool verbose=false;
     set<char> eliminated_letters;
     double expected_num_turns_to_win=-1;
     string recommended_for_information_gain;
@@ -267,6 +303,10 @@ public:
             cout << "Recommended word '" << recommended_overall << "' is not in the list of valid guesses. Calculating new recommended guesses." << endl;
             update_recommended();
         }
+    }
+
+    void set_verbosity(bool verbose) {
+        this->verbose = verbose;
     }
 
     void print_instructions() {
@@ -393,19 +433,7 @@ public:
         } else {
             hint = make_guess_hint(word_gt, guess);
             // Print the letters of the hint in their respective font colour
-            cout << "Hint: ";
-            for (int i = 0; i < hint.length(); i++) {
-                if (hint[i] == 'g') {
-                    // Green
-                    cout <<
-                } else if (hint[i] == 'y') {
-                    // Yellow background
-                    cout << "\033[43m" << hint[i] << "\033[0m";
-                } else {
-                    // Gray background
-                    cout << "\033[47m" << hint[i] << "\033[0m";
-                }
-            }
+            cout << "Hint: " << hint_to_string(hint) << endl;
         }
         // cout << pretty_print_hint(guess, hint);
         update(guess, hint);
@@ -418,8 +446,11 @@ public:
         if (guess.empty()) {
             guess = recommended_overall;
         }
-        string result = make_guess_hint(word_gt, guess);
-        update(guess, result);
+        string hint = make_guess_hint(word_gt, guess);
+        if (verbose) {
+            cout << "Hint: " << hint_to_string(hint) << endl;
+        }
+        update(guess, hint);
     }
 
     void update_recommended() {
@@ -521,7 +552,7 @@ double rate_guess(vector<string> wordlist, vector<string> valid_guesses, string 
 int play_automatically(WordleSolver& solver, string word_gt, int num_guesses=-1, int num_words_allowed_remaining=1) {
     // Play the game automatically
     int num_turns = 0;
-    while (!solver.num_words_remaining()<=num_words_allowed_remaining and (num_guesses == -1 or num_turns < num_guesses)) {
+    while (solver.num_words_remaining()>num_words_allowed_remaining and (num_guesses == -1 or num_turns < num_guesses)) {
         cout << "----------------------------------------" << endl;
         cout << solver.current_state() << endl;
         string guess = solver.recommended_overall;
@@ -559,7 +590,7 @@ float get_num_turns_to_win(WordleSolver& solver, string word_gt, bool verbose=fa
     return num_turns + solver.num_turns_remaining();
 }
 
-vector<float> get_num_turns_to_win(WordleSolver& solver, bool verbose=false) {
+vector<float> get_num_turns_to_win_by_word(WordleSolver& solver, bool verbose=false) {
     vector<float> num_turns_to_win;
     for (auto word_gt : solver.wordlist_remaining) {
         // Make a copy of the solver
@@ -570,13 +601,88 @@ vector<float> get_num_turns_to_win(WordleSolver& solver, bool verbose=false) {
 }
 
 float get_expected_num_turns_to_win(WordleSolver& solver, bool verbose=false) {
-    vector<float> num_turns_to_win = get_num_turns_to_win(solver, verbose);
+    vector<float> num_turns_to_win = get_num_turns_to_win_by_word(solver, verbose);
     float expected_num_turns_to_win = 0;
     for (auto num_turns : num_turns_to_win) {
         expected_num_turns_to_win += num_turns;
     }
     expected_num_turns_to_win /= num_turns_to_win.size();
     return expected_num_turns_to_win;
+}
+
+float get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<string>& wordlist, vector<string>& valid_guesses, int verbosity_levels=0, float max_expectation=10) {
+    if (max_expectation <= 0.67) {
+        if (verbosity_levels>0) {
+            // cout << "Skipping " << guess << " because max_expectation is " << max_expectation << endl;
+        }
+        return max_expectation + 100;
+    }
+    float expected_num_turns_to_win_accumulator = 0;
+    float max_accumulator_value = max_expectation * wordlist.size();
+    if (verbosity_levels>0) {
+        cout << "----------------------------------------" << endl;
+        cout << "guess: " << guess << ", level: " << verbosity_levels << ", num_words_remaining: " << wordlist.size() << ", max_accumulator_value: " << max_accumulator_value << ", max_expectation: " << max_expectation << endl;
+    }
+    for (int i = 0; i < int(wordlist.size()); i++) {
+        string word_hyp = wordlist[i];
+        if (word_hyp == guess) {
+            // 'zero turns' to win, so add nothing; just continue
+            continue;
+        }
+        vector<string> words_remaining = get_compatible_words(guess, make_guess_hint(word_hyp, guess), wordlist);
+        if (words_remaining.size() == 1) {
+            expected_num_turns_to_win_accumulator += 1;
+        } else if (words_remaining.size() == 2) {
+            expected_num_turns_to_win_accumulator += 1.5;
+        } else {
+            float best_expected_num_turns_to_win_given_guess = max_expectation - 1;
+            for (string next_guess : valid_guesses) {
+                if (words_remaining.size() == get_num_compatible_words(next_guess, make_guess_hint(word_hyp, next_guess), words_remaining)) {
+                    continue;
+                }
+                float expected_num_turns_to_win_given_guess_and_next_guess = get_expected_num_turns_to_win_given_guess_exhaustive(next_guess, words_remaining, valid_guesses, verbosity_levels-1, best_expected_num_turns_to_win_given_guess) + 1;
+                if (expected_num_turns_to_win_given_guess_and_next_guess < best_expected_num_turns_to_win_given_guess) {
+                    best_expected_num_turns_to_win_given_guess = expected_num_turns_to_win_given_guess_and_next_guess;
+                }
+            }
+            expected_num_turns_to_win_accumulator += best_expected_num_turns_to_win_given_guess;
+        }
+        if (max_accumulator_value < expected_num_turns_to_win_accumulator) {
+            break;
+        }
+    }
+    if (verbosity_levels>0) {
+        cout << "expected_num_turns_to_win_accumulator: " << expected_num_turns_to_win_accumulator / wordlist.size() << endl;
+        cout << "++++++++++++++++++++++++++++++++++++++++" << endl;
+    }
+    return expected_num_turns_to_win_accumulator / wordlist.size();
+}
+
+auto get_best_word_exhaustively(vector<string>& wordlist, vector<string>& valid_guesses, bool verbose=true) {
+    if (verbose) {
+        cout << "Beginning exhaustive search" << endl;
+    }
+    string best_guess = "";
+    float best_ettw = 3.6;
+    for (string guess : valid_guesses) {
+        float ettw = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, verbose*4, best_ettw);
+        if (ettw < best_ettw) {
+            best_guess = guess;
+            best_ettw = ettw;
+            if (verbose) {
+                cout << "New best guess: " << best_guess << " with ettw = " << best_ettw << endl;
+            }
+        } else if (verbose) {
+            cout << "Guess " << guess << " has ettw = " << ettw << ", which is worse than the best guess so far" << endl;
+        }
+    }
+    return tuple(best_guess, best_ettw);
+}
+
+void calculate_best_opening(vector<string> wordlist, vector<string> valid_guesses, bool verbose=false) {
+    cout << "Calculating best opening" << endl;
+    auto [best_guess, best_ettw] = get_best_word_exhaustively(wordlist, valid_guesses, verbose);
+    cout << "Best guess is " << best_guess << " with " << best_ettw << " turns to win" << endl;
 }
 
 void play_interactively(WordleSolver& solver, string word_gt) {
@@ -589,7 +695,7 @@ void play_interactively(WordleSolver& solver, string word_gt) {
     cout << solver.current_state() << endl;
 }
 
-void calculate_best_opening(WordleSolver& solver, bool verbose=false) {
+void calculate_highest_entropy_opening(WordleSolver& solver, bool verbose=false) {
     string option1 = solver.recommended_for_information_gain;
     string option2 = solver.recommended_for_immediate_win;
     WordleSolver solver_copy1 = solver;
@@ -743,22 +849,25 @@ int main(int argc, char** argv) {
     }
     // Initialise the solver
     WordleSolver solver(wordlist, valid_guesses);
+    solver.set_verbosity(verbose);
     // In auto mode, play the game automatically
     // In interactive mode, play the game interactively, prompting the user to enter the results for each guess (default)
     if (mode == "auto") {
         play_automatically(solver, word_gt, 6);
     } else if (mode == "interactive") {
         play_interactively(solver, word_gt);
-    } else if (mode == "calculate-best-opening") {
-        calculate_best_opening(solver, verbose);
+    } else if (mode == "calculate-highest-entropy-opening") {
+        calculate_highest_entropy_opening(solver, verbose);
+    } else if (mode == "calculate-best-opener") {
+        calculate_best_opening(wordlist, valid_guesses, verbose);
     } else {
         cout << "Invalid mode" << endl;
-    }
+    } 
     return 0;
 }
 
 // To compile and run with libomp:
-// /opt/homebrew/opt/gcc/bin/g++-11 -std=c++20 -fopenmp -lomp wordle2.cpp -o wordle2 && ./wordle2
+// g++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle
 // or
 // clang++ -std=c++17 -fopenmp -O3 -march=native -I/usr/local/include -L/usr/local/lib -lomp wordlesolver.cpp -o wordlesolver
 // Using Emscripten and Node:
