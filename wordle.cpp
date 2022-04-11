@@ -12,7 +12,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include "nlohmann/json.hpp"
+#include <cassert>
 // For OpenMP
 #if defined(_OPENMP)
     #include <omp.h>
@@ -21,20 +21,26 @@
 #include <ctime>
 
 using namespace std;
-using namespace nlohmann;
 
 #define MAX_THREADS 2
 #define LARGE_NUMBER 1000000
 
-// Read in the solutions file, a json list of words that can be word of the day
+// Read in the solutions file, a list of double-quoted words separated by spaces e.g. "cigar", "rebut", "sissy"...
 vector<string> load_wordlist(string wordlist_filename) {
-    ifstream wordlist_file(wordlist_filename);
-    json wordlist_json;
-    wordlist_file >> wordlist_json;
     vector<string> wordlist;
-    for (auto word : wordlist_json) {
+    ifstream wordlist_file(wordlist_filename);
+    string word;
+    while (getline(wordlist_file, word, ' ')) {
+        // Unwanted characters
+        word.erase(remove(word.begin(), word.end(), '"'), word.end());
+        // Remove trailing whitespace
+        word.erase(remove(word.begin(), word.end(), ' '), word.end());
+        // Remove commas
+        word.erase(remove(word.begin(), word.end(), ','), word.end());
         wordlist.push_back(word);
+        cout << word << endl;
     }
+    cout << to_string(wordlist.size()) << " words loaded from " << wordlist_filename << endl;
     return wordlist;
 }
 
@@ -950,7 +956,9 @@ int main(int argc, char** argv) {
     // test_game1();
 
     // Read in the solutions file, a json list of words that can be word of the day, and the valid guesses file, a json list of words that can be guessed
-    auto [wordlist, valid_guesses] = load_wordle("wordlesolver/solutions_nyt.json", "wordlesolver/nonsolutions_nyt.json");
+    auto [wordlist, valid_guesses] = load_wordle("solutions_nyt.txt", "nonsolutions_nyt.txt");
+    assert(wordlist.size() > 0);
+    assert(valid_guesses.size() > 0);
     // Parse the command line arguments
     string mode = "interactive";
     string word_gt = "";
