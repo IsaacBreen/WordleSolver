@@ -12,8 +12,6 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include <nlohmann/json.hpp>
-#include "tqdm/tqdm.h"
 #include <omp.h>
 // For timing
 #include <ctime>
