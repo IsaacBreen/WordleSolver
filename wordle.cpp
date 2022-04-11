@@ -21,7 +21,8 @@
 using namespace std;
 using namespace nlohmann;
 
-#define MAX_THREADS 4
+#define MAX_THREADS 2
+#define LARGE_NUMBER 1000000
 
 // Read in the solutions file, a json list of words that can be word of the day
 vector<string> load_wordlist(string wordlist_filename) {
@@ -586,8 +587,7 @@ public:
         } else if (expected_num_turns_to_win > 0) {
             return expected_num_turns_to_win-1;
         } else {
-            cout << "Exiting because expected_num_turns_to_win is not set." << endl;
-            exit(1);
+            return -1;
         }
     }
 
@@ -708,7 +708,7 @@ float get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<
         if (verbosity_levels>0) {
             // cout << "Skipping " << guess << " because max_expectation is " << max_expectation << endl;
         }
-        return max_expectation + 99999;
+        return max_expectation + LARGE_NUMBER;
     }
     float expected_num_turns_to_win_accumulator = 0;
     float max_accumulator_value = max_expectation * wordlist.size();
@@ -716,6 +716,7 @@ float get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<
         cout << "----------------------------------------" << endl;
         cout << "guess: " << guess << ", level: " << verbosity_levels << ", num_words_remaining: " << wordlist.size() << ", max_accumulator_value: " << max_accumulator_value << ", max_expectation: " << max_expectation << endl;
     }
+    map<string, float> hint_expectation_cache;
     for (int i = 0; i < int(wordlist.size()); i++) {
         string word_hyp = wordlist[i];
         if (word_hyp == guess) {
@@ -723,22 +724,22 @@ float get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<
             continue;
         }
         string hint = make_guess_hint(word_hyp, guess);
+        // If in cache, add cached value to accumulator
+        if (hint_expectation_cache.count(hint) > 0) {
+            expected_num_turns_to_win_accumulator += hint_expectation_cache[hint];
+            continue;
+        }
         vector<string> words_remaining = get_compatible_words(guess, hint, wordlist);
         if (words_remaining.size() == 1) {
             expected_num_turns_to_win_accumulator += 1;
+            hint_expectation_cache[hint] = 1;
         } else if (words_remaining.size() == 2) {
             expected_num_turns_to_win_accumulator += 1.5;
+            hint_expectation_cache[hint] = 1.5;
         } else {
             vector<string> useful_valid_guesses = valid_guesses;
             // if (words_remaining.size() < 10) {
             //     useful_valid_guesses = get_useful_guesses(words_remaining, valid_guesses);
-            //     cout << "ulled guesses from " << valid_guesses.size() << " to " << useful_valid_guesses.size() << " with " << words_remaining.size() << " words remaining";
-            //     if (words_remaining.size() < 10) {
-            //         for (auto word : words_remaining) {
-            //             cout << " " << word;
-            //         }
-            //     }
-            //     cout << endl;
             // }
             float expected_num_turns_to_win_given_guess_and_best_next_guess = max_expectation - 1;
             for (string next_guess : valid_guesses) {
@@ -748,6 +749,7 @@ float get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<
                 }
             }
             expected_num_turns_to_win_accumulator += expected_num_turns_to_win_given_guess_and_best_next_guess;
+            hint_expectation_cache[hint] = expected_num_turns_to_win_given_guess_and_best_next_guess;
         }
         if (max_accumulator_value < expected_num_turns_to_win_accumulator) {
             break;
@@ -760,19 +762,29 @@ float get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<
     return expected_num_turns_to_win_accumulator / wordlist.size();
 }
 
-auto get_best_word_exhaustively(vector<string>& wordlist, vector<string>& valid_guesses, bool verbose=true) {
+auto get_best_words_exhaustively(vector<string>& wordlist, vector<string>& valid_guesses, bool verbose=true) {
     if (verbose) {
         cout << "Beginning exhaustive search" << endl;
     }
     string best_guess = "";
+    map<string, float> expected_num_turns_to_win;
     WordleSolver solver(wordlist, valid_guesses);
     // float best_ettw = get_expected_num_turns_to_win_by_greedy_strategy(solver, true);
     float best_ettw = 2.5;
+    bool threaded_verbosity = verbose;
+    #if defined(_OPENMP)
+        if (verbose) {
+            cout << "Using OpenMP in verbose mode will limit verbosity." << endl;
+            threaded_verbosity = false;
+        }
+    #endif
+    #pragma omp parallel for schedule(dynamic) num_threads(MAX_THREADS)
     for (string guess : valid_guesses) {
-        float ettw = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, verbose*4, best_ettw);
+        float ettw = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, threaded_verbosity*3, best_ettw);
         if (ettw < best_ettw) {
             best_guess = guess;
             best_ettw = ettw;
+            expected_num_turns_to_win[guess] = ettw;
             if (verbose) {
                 cout << "New best guess: " << best_guess << " with ettw = " << best_ettw << endl;
             }
@@ -780,8 +792,35 @@ auto get_best_word_exhaustively(vector<string>& wordlist, vector<string>& valid_
             cout << "Guess " << guess << " has ettw = " << ettw << ", which is worse than the best guess so far" << endl;
         }
     }
+    if (verbose) {
+        cout << "Finished exhaustive search. Top 10 guesses: " << endl;
+        // Get top 10 guesses
+        vector<pair<string, float>> guesses_and_ettws;
+        for (auto& guess_and_ettw : expected_num_turns_to_win) {
+            guesses_and_ettws.push_back(make_pair(guess_and_ettw.first, guess_and_ettw.second));
+        }
+        sort(guesses_and_ettws.begin(), guesses_and_ettws.end(), [](const pair<string, float>& a, const pair<string, float>& b) {
+            return a.second < b.second;
+        });
+        for (int i = 0; i < 10; i++) {
+            cout << guesses_and_ettws[i].first << ": " << guesses_and_ettws[i].second << endl;
+        }
+    }
+    return expected_num_turns_to_win;
+}
+
+auto get_best_word_exhaustively(vector<string>& wordlist, vector<string>& valid_guesses, bool verbose=true) {
+    string best_guess = "";
+    float best_ettw = LARGE_NUMBER;
+    for (auto [guess, ettw] : get_best_words_exhaustively(wordlist, valid_guesses, verbose)) {
+        if (ettw < best_ettw) {
+            best_guess = guess;
+            best_ettw = ettw;
+        }
+    }
     return tuple(best_guess, best_ettw);
 }
+
 
 void calculate_best_opening(vector<string> wordlist, vector<string> valid_guesses, bool verbose=false) {
     cout << "Calculating best opening" << endl;
@@ -960,7 +999,7 @@ int main(int argc, char** argv) {
         play_automatically(solver, word_gt, verbose, 6);
     } else if (mode == "interactive") {
         play_interactively(solver, word_gt);
-    } else if (mode == "calculate-highest-entropy-opening") {
+    } else if (mode == "calculate-highest-entropy-opener") {
         calculate_highest_entropy_opening(solver, verbose);
     } else if (mode == "calculate-best-opener") {
         calculate_best_opening(wordlist, valid_guesses, verbose);
@@ -972,6 +1011,7 @@ int main(int argc, char** argv) {
 
 // To compile and run with libomp:
 // g++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle
+// g++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle --mode calculate-best-opener --verbose
 // or
 // clang++ -std=c++17 -fopenmp -O3 -march=native -I/usr/local/include -L/usr/local/lib -lomp wordle.cpp -o wordle
 // Using Emscripten and Node:
