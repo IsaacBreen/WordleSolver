@@ -21,6 +21,8 @@
 using namespace std;
 using namespace nlohmann;
 
+#define MAX_THREADS 4
+
 // Read in the solutions file, a json list of words that can be word of the day
 vector<string> load_wordlist(string wordlist_filename) {
     ifstream wordlist_file(wordlist_filename);
@@ -78,11 +80,6 @@ string make_guess_hint(string word, string guess) {
     return guess_hint;
 }
 
-string pretty_print_hint(string guess, string hint) {
-    // Example: "soare -> bgbyb"
-    return guess + " -> " + hint;
-}
-
 string hint_to_string(string hint) {
     stringstream ss;
     for (int i = 0; i < hint.length(); i++) {
@@ -108,16 +105,6 @@ bool guess_is_useless(string guess, set<char> eliminated_letters) {
         }
     }
     return true;
-}
-
-vector<string> get_useful_guesses(vector<string> guesses, set<char> eliminated_letters) {
-    vector<string> useful_guesses;
-    for (string guess : guesses) {
-        if (!guess_is_useless(guess, eliminated_letters)) {
-            useful_guesses.push_back(guess);
-        }
-    }
-    return useful_guesses;
 }
 
 // Check if a word is compatible with a guess and guess result
@@ -181,7 +168,46 @@ int get_num_compatible_words(string guess, string guess_hint, vector<string>& wo
     return num_compatible_words;
 }
 
-double get_expected_information_gain(string guess, vector<string> wordlist) {
+vector<string> get_useful_guesses_using_guess_history(vector<string>& guesses, set<char>& eliminated_letters) {
+    vector<string> useful_guesses;
+    for (string guess : guesses) {
+        if (!guess_is_useless(guess, eliminated_letters)) {
+            useful_guesses.push_back(guess);
+        }
+    }
+    return useful_guesses;
+}
+
+bool guess_is_useful(string guess, string hint, vector<string>& wordlist) {
+    // A guess is useful if it can eliminate any word from the wordlist
+    for (auto word_hyp : wordlist) {
+        if (not word_is_compatible_with_guess_hint(word_hyp, guess, hint)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+auto guess_may_be_useful(string guess, vector<string>& wordlist) {
+    for (string word_hyp : wordlist) {
+        if (guess_is_useful(guess, make_guess_hint(word_hyp, guess), wordlist)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+vector<string> get_useful_guesses(vector<string>& wordlist, vector<string>& valid_guesses) {
+    vector<string> useful_guesses;
+    for (string guess : valid_guesses) {
+        if (guess_may_be_useful(guess, wordlist)) {
+            useful_guesses.push_back(guess);
+        }
+    }
+    return useful_guesses;
+}
+
+double get_expected_information_gain(string guess, vector<string>& wordlist) {
     // WARN_EMPTY_VECTOR(wordlist);
     double cumulative_information_gain = 0;
     double base_entropy = log2(wordlist.size());
@@ -194,10 +220,10 @@ double get_expected_information_gain(string guess, vector<string> wordlist) {
     return cumulative_information_gain / wordlist.size();
 }
 
-tuple<vector<string>, double> get_recommendation(vector<string> wordlist, vector<string> valid_guesses) {
-    auto t0 = chrono::high_resolution_clock::now();
+tuple<vector<string>, double> get_recommendation(vector<string>& wordlist, vector<string>& valid_guesses) {
+    // auto t0 = chrono::high_resolution_clock::now();
     vector<double> expected_information_gains(valid_guesses.size(), false);
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic) num_threads(MAX_THREADS)
     for (auto word_hyp : wordlist) {
         for (int i = 0; i < int(valid_guesses.size()); i++) {
             auto guess_candidate = valid_guesses[i];
@@ -218,9 +244,9 @@ tuple<vector<string>, double> get_recommendation(vector<string> wordlist, vector
             words_with_highest_information_gain.push_back(valid_guesses[i]);
         }
     }
-    auto t1 = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::microseconds>(t1 - t0).count();
-    cout << "get_recommendation took " << duration << " microseconds" << endl;
+    // auto t1 = chrono::high_resolution_clock::now();
+    // auto duration = chrono::duration_cast<chrono::microseconds>(t1 - t0).count();
+    // cout << "get_recommendation took " << duration << " microseconds" << endl;
     return make_tuple(words_with_highest_information_gain, highest_information_gain);
 }
 
@@ -233,7 +259,7 @@ string get_recommended_word(vector<string> wordlist, vector<string> valid_guesse
     return get_recommended_words(wordlist, valid_guesses)[0];
 }
 
-tuple<string, double> get_expected_num_turns_to_win(vector<string> wordlist, vector<string> valid_guesses) {
+tuple<string, double> get_expected_num_turns_to_win(vector<string>& wordlist, vector<string>& valid_guesses) {
     // Calculate the minimum number of turns to win if using the strategy of guessing the word with the highest information gain 
     // out of either all valid guesses or just the words remaining in the wordlist.
     // Note: the winning guess counts as one guess.
@@ -267,6 +293,14 @@ tuple<string, double> get_expected_num_turns_to_win(vector<string> wordlist, vec
     expected_min_turns2 /= wordlist.size();
     expected_min_turns2 += 1;
     return make_tuple(guess1, expected_min_turns1 < expected_min_turns2 ? expected_min_turns1 : expected_min_turns2);
+}
+
+map<string, int> get_hint_frequencies(string guess, vector<string>& wordlist) {
+    map<string, int> hint_frequencies;
+    for (auto word_hyp : wordlist) {
+        hint_frequencies[make_guess_hint(word_hyp, guess)]++;
+    }
+    return hint_frequencies;
 }
 
 // A class that manages a single game of Wordle. Provides methods for playing a single turn of the game either interactively or automatically,
@@ -335,6 +369,33 @@ public:
         return true;
     }
 
+    string next_step_details(string guess, string hint, int frequency) {
+        stringstream ss;
+        auto compatible_words = get_compatible_words(guess, hint, wordlist_remaining);
+        string best_next_guess = get_recommended_word(compatible_words, valid_guesses_remaining);
+        string frequency_str = to_string(frequency);
+        while (frequency_str.length() < 3) {
+            frequency_str = " " + frequency_str;
+        }
+        float frequency_proportion = (float)frequency / wordlist_remaining.size();
+        // Print as a percentage with 2 decimal places.
+        string frequency_proportion_str = to_string(frequency_proportion).substr(0, 5);
+        // Also print a solid bar of length proportional to the frequency proportion
+        const int MAX_BAR_LENGTH = 50;
+        int bar_length = round(frequency_proportion * MAX_BAR_LENGTH);
+        string bar = "[";
+        for (int i = 0; i < MAX_BAR_LENGTH; i++) {
+            if (i < bar_length - 1) {
+                bar += "■";
+            } else {
+                bar += "·";
+            }
+        }
+        bar += "]";
+        ss << hint_to_string(hint) << " " << best_next_guess << " " << frequency_str << "  " << frequency_proportion_str << "% " << bar << endl;
+        return ss.str();
+    }
+
     string prompt_for_guess(string suggestion="") {
         string guess;
         while (true) {
@@ -355,6 +416,19 @@ public:
         if (guess != suggestion) {
             while (true) {
                 cout << "Information gain for guess " << guess << ": " << get_expected_information_gain(guess, wordlist_remaining) << " bits" << endl;
+                map<string, int> hint_frequencies = get_hint_frequencies(guess, wordlist_remaining);
+                cout << "Number of compatible hint configurations: " << hint_frequencies.size() << endl;
+                // Order from most frequent to least frequent
+                vector<pair<string, int>> hint_frequencies_ordered;
+                for (auto hint_frequency : hint_frequencies) {
+                    hint_frequencies_ordered.push_back(make_pair(hint_frequency.first, hint_frequency.second));
+                }
+                sort(hint_frequencies_ordered.begin(), hint_frequencies_ordered.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+                    return a.second > b.second;
+                });
+                for (auto hint_frequency : hint_frequencies_ordered) {
+                    cout << next_step_details(guess, hint_frequency.first, hint_frequency.second);
+                }
                 cout << "Do you want to continue? (press Enter or type another guess): ";
                 string continue_str;
                 getline(cin, continue_str);
@@ -402,7 +476,7 @@ public:
             return "The words is either " + wordlist_remaining[0] + " or " + wordlist_remaining[1] + ".";
         }
         stringstream ss;
-        cout << "The words remaining are: ";
+        ss << "The words remaining are: ";
         for (int i = 0; i < min(10, int(wordlist_remaining.size())); i++) {
             ss << wordlist_remaining[i];
             if (i+1 < min(10, int(wordlist_remaining.size()))) {
@@ -461,7 +535,7 @@ public:
         recommended_for_immediate_win = words_for_immediate_win[0];
         highest_information_gain_for_immediate_win = highest_information_gain_for_immediate_win_;
         if (2 < wordlist_remaining.size() and wordlist_remaining.size() * log(wordlist_remaining.size()) * valid_guesses.size() < pow(10, 5)) {
-            cout << "Valid guesses remaining: " << valid_guesses_remaining.size() << endl;
+            // cout << "Valid guesses remaining: " << valid_guesses_remaining.size() << endl;
             auto [best_word_overall, expected_num_turns_to_win_] = get_expected_num_turns_to_win(wordlist_remaining, valid_guesses);
             expected_num_turns_to_win = expected_num_turns_to_win_;
             recommended_overall = best_word_overall;
@@ -488,7 +562,7 @@ public:
                 eliminated_letters.insert(guess[i]);
             }
         }
-        valid_guesses_remaining = get_useful_guesses(valid_guesses_remaining, eliminated_letters);
+        valid_guesses_remaining = get_useful_guesses_using_guess_history(valid_guesses_remaining, eliminated_letters);
     }
 
     void update(string guess, string result) {
@@ -506,13 +580,14 @@ public:
 
     float num_turns_remaining() {
         if (wordlist_remaining.size() == 1) {
-            return 1;
+            return 1-1;
         } else if (wordlist_remaining.size() == 2) {
-            return 1.5;
+            return 1.5-1;
         } else if (expected_num_turns_to_win > 0) {
-            return expected_num_turns_to_win;
+            return expected_num_turns_to_win-1;
         } else {
-            return -1;
+            cout << "Exiting because expected_num_turns_to_win is not set." << endl;
+            exit(1);
         }
     }
 
@@ -549,20 +624,38 @@ double rate_guess(vector<string> wordlist, vector<string> valid_guesses, string 
 }
 
 
-int play_automatically(WordleSolver& solver, string word_gt, int num_guesses=-1, int num_words_allowed_remaining=1) {
+int play_automatically(WordleSolver solver, string word_gt, bool verbose=false, int num_guesses=-1, int num_words_allowed_remaining=1) {
     // Play the game automatically
     int num_turns = 0;
     while (solver.num_words_remaining()>num_words_allowed_remaining and (num_guesses == -1 or num_turns < num_guesses)) {
-        cout << "----------------------------------------" << endl;
-        cout << solver.current_state() << endl;
+        if (verbose) {
+            cout << "----------------------------------------" << endl;
+            cout << solver.current_state() << endl;
+        }
         string guess = solver.recommended_overall;
-        cout << "Guessing " << guess << endl;
+        if (verbose) {
+            cout << "Guessing " << guess << endl;
+        }
         solver.play_turn_automatically(word_gt, guess);
         num_turns++;
     }
-    cout << "----------------------------------------" << endl;
-    cout << solver.current_state() << endl;
+    if (verbose) {
+        cout << "----------------------------------------" << endl;
+        cout << solver.current_state() << endl;
+    }
     return num_turns + solver.num_turns_remaining();
+}
+
+float get_expected_num_turns_to_win_by_greedy_strategy(WordleSolver& solver, bool verbose=false) {
+    float expected_num_turns_to_win = 0;
+    for (string word : solver.wordlist_remaining) {
+        auto num_turns_to_win = play_automatically(solver, word, false);
+        if (verbose) {
+            cout << "Expected number of turns to win using greedy strategy when the word is " << word << ": " << num_turns_to_win << endl;
+        }
+        expected_num_turns_to_win += num_turns_to_win;
+    }
+    return expected_num_turns_to_win / solver.wordlist_remaining.size();
 }
 
 float get_num_turns_to_win(WordleSolver& solver, string word_gt, bool verbose=false) {
@@ -615,7 +708,7 @@ float get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<
         if (verbosity_levels>0) {
             // cout << "Skipping " << guess << " because max_expectation is " << max_expectation << endl;
         }
-        return max_expectation + 100;
+        return max_expectation + 99999;
     }
     float expected_num_turns_to_win_accumulator = 0;
     float max_accumulator_value = max_expectation * wordlist.size();
@@ -629,23 +722,32 @@ float get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<
             // 'zero turns' to win, so add nothing; just continue
             continue;
         }
-        vector<string> words_remaining = get_compatible_words(guess, make_guess_hint(word_hyp, guess), wordlist);
+        string hint = make_guess_hint(word_hyp, guess);
+        vector<string> words_remaining = get_compatible_words(guess, hint, wordlist);
         if (words_remaining.size() == 1) {
             expected_num_turns_to_win_accumulator += 1;
         } else if (words_remaining.size() == 2) {
             expected_num_turns_to_win_accumulator += 1.5;
         } else {
-            float best_expected_num_turns_to_win_given_guess = max_expectation - 1;
+            vector<string> useful_valid_guesses = valid_guesses;
+            // if (words_remaining.size() < 10) {
+            //     useful_valid_guesses = get_useful_guesses(words_remaining, valid_guesses);
+            //     cout << "ulled guesses from " << valid_guesses.size() << " to " << useful_valid_guesses.size() << " with " << words_remaining.size() << " words remaining";
+            //     if (words_remaining.size() < 10) {
+            //         for (auto word : words_remaining) {
+            //             cout << " " << word;
+            //         }
+            //     }
+            //     cout << endl;
+            // }
+            float expected_num_turns_to_win_given_guess_and_best_next_guess = max_expectation - 1;
             for (string next_guess : valid_guesses) {
-                if (words_remaining.size() == get_num_compatible_words(next_guess, make_guess_hint(word_hyp, next_guess), words_remaining)) {
-                    continue;
-                }
-                float expected_num_turns_to_win_given_guess_and_next_guess = get_expected_num_turns_to_win_given_guess_exhaustive(next_guess, words_remaining, valid_guesses, verbosity_levels-1, best_expected_num_turns_to_win_given_guess) + 1;
-                if (expected_num_turns_to_win_given_guess_and_next_guess < best_expected_num_turns_to_win_given_guess) {
-                    best_expected_num_turns_to_win_given_guess = expected_num_turns_to_win_given_guess_and_next_guess;
+                float expected_num_turns_to_win_given_guess_and_next_guess = get_expected_num_turns_to_win_given_guess_exhaustive(next_guess, words_remaining, valid_guesses, verbosity_levels-1, expected_num_turns_to_win_given_guess_and_best_next_guess) + 1;
+                if (expected_num_turns_to_win_given_guess_and_next_guess < expected_num_turns_to_win_given_guess_and_best_next_guess) {
+                    expected_num_turns_to_win_given_guess_and_best_next_guess = expected_num_turns_to_win_given_guess_and_next_guess;
                 }
             }
-            expected_num_turns_to_win_accumulator += best_expected_num_turns_to_win_given_guess;
+            expected_num_turns_to_win_accumulator += expected_num_turns_to_win_given_guess_and_best_next_guess;
         }
         if (max_accumulator_value < expected_num_turns_to_win_accumulator) {
             break;
@@ -663,7 +765,9 @@ auto get_best_word_exhaustively(vector<string>& wordlist, vector<string>& valid_
         cout << "Beginning exhaustive search" << endl;
     }
     string best_guess = "";
-    float best_ettw = 3.6;
+    WordleSolver solver(wordlist, valid_guesses);
+    // float best_ettw = get_expected_num_turns_to_win_by_greedy_strategy(solver, true);
+    float best_ettw = 2.5;
     for (string guess : valid_guesses) {
         float ettw = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, verbose*4, best_ettw);
         if (ettw < best_ettw) {
@@ -853,7 +957,7 @@ int main(int argc, char** argv) {
     // In auto mode, play the game automatically
     // In interactive mode, play the game interactively, prompting the user to enter the results for each guess (default)
     if (mode == "auto") {
-        play_automatically(solver, word_gt, 6);
+        play_automatically(solver, word_gt, verbose, 6);
     } else if (mode == "interactive") {
         play_interactively(solver, word_gt);
     } else if (mode == "calculate-highest-entropy-opening") {
@@ -869,8 +973,10 @@ int main(int argc, char** argv) {
 // To compile and run with libomp:
 // g++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle
 // or
-// clang++ -std=c++17 -fopenmp -O3 -march=native -I/usr/local/include -L/usr/local/lib -lomp wordlesolver.cpp -o wordlesolver
+// clang++ -std=c++17 -fopenmp -O3 -march=native -I/usr/local/include -L/usr/local/lib -lomp wordle.cpp -o wordle
 // Using Emscripten and Node:
-// emcc -O3 -std=c++20 -sASSERTIONS -s NO_DISABLE_EXCEPTION_CATCHING -s NODERAWFS=1 wordle2.cpp -o wordle2.js && node wordle2.js
+// emcc -O3 -std=c++20 -sASSERTIONS -s NO_DISABLE_EXCEPTION_CATCHING -s NODERAWFS=1 wordle.cpp -o wordle.js && node wordle.js
+// Export using emcc
+// emcc -O3 -std=c++20 -s ASSERTIONS=1 -s NO_DISABLE_EXCEPTION_CATCHING -s NODERAWFS=1 -s EXPORTED_FUNCTIONS=_main EXPORTED_RUNTIME_METHODS=ccall,cwrap wordle.cpp -o wordle.js && node wordle.js
 
 // clang -Xpreprocessor -fopenmp -lomp -I"$(brew --prefix libomp)/include" -L"$(brew --prefix libomp)/lib" myfile.cxx
