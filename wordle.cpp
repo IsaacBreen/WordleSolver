@@ -22,7 +22,7 @@
 
 using namespace std;
 
-#define MAX_THREADS 2
+#define MAX_THREADS 1000
 #define LARGE_NUMBER 1000000
 
 // Read in the solutions file, a list of double-quoted words separated by spaces e.g. "cigar", "rebut", "sissy"...
@@ -38,9 +38,7 @@ vector<string> load_wordlist(string wordlist_filename) {
         // Remove commas
         word.erase(remove(word.begin(), word.end(), ','), word.end());
         wordlist.push_back(word);
-        cout << word << endl;
     }
-    cout << to_string(wordlist.size()) << " words loaded from " << wordlist_filename << endl;
     return wordlist;
 }
 
@@ -786,9 +784,12 @@ auto get_best_words_exhaustively(vector<string>& wordlist, vector<string>& valid
             threaded_verbosity = false;
         }
     #endif
+    int guesses_checked = 0;
     #pragma omp parallel for schedule(dynamic) num_threads(MAX_THREADS)
     for (string guess : valid_guesses) {
+        cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Starting guess: " << guess << endl;
         float ettw = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, threaded_verbosity*3, best_ettw);
+        cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") ";
         if (ettw < best_ettw) {
             best_guess = guess;
             best_ettw = ettw;
@@ -1024,7 +1025,7 @@ int main(int argc, char** argv) {
 // g++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle --mode calculate-best-opener --verbose
 // or
 // clang++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle
-// clang++ -std=c++20 -I/usr/lib/gcc/x86_64-linux-gnu/8/include -fopenmp=libiomp5 wordle.cpp -o wordle && ./wordle
+// clang++ -std=c++20 -I/usr/lib/gcc/x86_64-linux-gnu/8/include -fopenmp=libiomp5 wordle.cpp -o wordle && ./wordle  --mode calculate-best-opener --verbose
 // Using Emscripten and Node:
 // emcc -O3 -std=c++20 -sASSERTIONS -s NO_DISABLE_EXCEPTION_CATCHING -s NODERAWFS=1 wordle.cpp -o wordle.js && node wordle.js
 // Export using emcc
