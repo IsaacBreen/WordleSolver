@@ -12,7 +12,11 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include <omp.h>
+#include "nlohmann/json.hpp"
+// For OpenMP
+#if defined(_OPENMP)
+    #include <omp.h>
+#endif
 // For timing
 #include <ctime>
 
@@ -1011,7 +1015,8 @@ int main(int argc, char** argv) {
 // g++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle
 // g++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle --mode calculate-best-opener --verbose
 // or
-// clang++ -std=c++17 -fopenmp -O3 -march=native -I/usr/local/include -L/usr/local/lib -lomp wordle.cpp -o wordle
+// clang++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle
+// clang++ -std=c++20 -I/usr/lib/gcc/x86_64-linux-gnu/8/include -fopenmp=libiomp5 wordle.cpp -o wordle && ./wordle
 // Using Emscripten and Node:
 // emcc -O3 -std=c++20 -sASSERTIONS -s NO_DISABLE_EXCEPTION_CATCHING -s NODERAWFS=1 wordle.cpp -o wordle.js && node wordle.js
 // Export using emcc
