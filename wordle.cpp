@@ -22,7 +22,7 @@
 
 using namespace std;
 
-#define MAX_THREADS 110
+#define MAX_THREADS 8
 #define LARGE_NUMBER 1000000
 
 // Read in the solutions file, a list of double-quoted words separated by spaces e.g. "cigar", "rebut", "sissy"...
@@ -145,13 +145,56 @@ bool word_is_compatible_with_guess_hint(string word_hyp, string guess, string gu
 }
 
 // Get all words compatible with a guess and guess result
-vector<string> get_compatible_words(string guess, string guess_hint, vector<string>& wordlist) {
+vector<string> get_compatible_words_nonparallel(string guess, string guess_hint, vector<string>& wordlist) {
     vector<string> compatible_words;
     for (auto word_hyp : wordlist) {
         if (word_is_compatible_with_guess_hint(word_hyp, guess, guess_hint)) {
             compatible_words.push_back(word_hyp);
         }
     }
+    return compatible_words;
+}
+
+vector<string> get_compatible_words_parallel(string guess, string guess_hint, vector<string>& wordlist) {
+    vector<bool> compatible_words_bool(wordlist.size(), false);
+    #pragma omp parallel for schedule(dynamic) num_threads(MAX_THREADS)
+    for (int i = 0; i < int(wordlist.size()); i++) {
+        if (word_is_compatible_with_guess_hint(wordlist[i], guess, guess_hint)) {
+            compatible_words_bool[i] = true;
+        }
+    }
+    vector<string> compatible_words;
+    for (int i = 0; i < int(wordlist.size()); i++) {
+        if (compatible_words_bool[i]) {
+            compatible_words.push_back(wordlist[i]);
+        }
+    }
+    return compatible_words;
+}
+
+#define PARALLEL_GET_COMPATIBLE_WORDS false
+#define BENCHMARK_MODE false
+vector<string> get_compatible_words(string guess, string guess_hint, vector<string>& wordlist) {
+    #if BENCHMARK_MODE
+        auto t0 = std::chrono::high_resolution_clock::now();
+    #endif
+    vector<string> compatible_words;
+    if (PARALLEL_GET_COMPATIBLE_WORDS) {
+        compatible_words = get_compatible_words_nonparallel(guess, guess_hint, wordlist);
+    } else {
+        compatible_words = get_compatible_words_parallel(guess, guess_hint, wordlist);
+    }
+    #if BENCHMARK_MODE 
+        auto t1 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> time_span = t1 - t0;
+        static int num_calls = 0;
+        static double average_time = 0;
+        num_calls++;
+        average_time = (average_time * (num_calls - 1) + time_span.count()) / num_calls;
+        if (num_calls % 1000 == 0) {
+            cout << "Average time taken (microseconds): " << average_time * 1000000 << " (call " << num_calls << ")" << endl;
+        }
+    #endif
     return compatible_words;
 }
 
@@ -709,9 +752,9 @@ float get_expected_num_turns_to_win(WordleSolver& solver, bool verbose=false) {
     return expected_num_turns_to_win;
 }
 
-tuple<float, int> get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<string>& wordlist, vector<string>& valid_guesses, int verbosity_levels=0, float max_expectation=10) {
+tuple<float, int> get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<string>& wordlist, vector<string>& valid_guesses, int verbosity_levels=0, int current_level=0, float max_expectation=10) {
     if (max_expectation <= 0.67) {
-        if (verbosity_levels>0) {
+        if (verbosity_levels>current_level) {
             // cout << "Skipping " << guess << " because max_expectation is " << max_expectation << endl;
         }
         return make_tuple(max_expectation + LARGE_NUMBER, 0);
@@ -719,56 +762,64 @@ tuple<float, int> get_expected_num_turns_to_win_given_guess_exhaustive(string gu
     float expected_num_turns_to_win_accumulator = 0;
     int worst_case_num_turns_to_win_given_guess = 0;
     float max_accumulator_value = max_expectation * wordlist.size();
-    if (verbosity_levels>0) {
-        cout << "----------------------------------------" << endl;
-        cout << "guess: " << guess << ", level: " << verbosity_levels << ", num_words_remaining: " << wordlist.size() << ", max_accumulator_value: " << max_accumulator_value << ", max_expectation: " << max_expectation << endl;
+    if (verbosity_levels>current_level) {
+        // cout << "----------------------------------------" << endl;
     }
     map<string, tuple<float, int>> hint_expectation_cache;
     for (int i = 0; i < int(wordlist.size()); i++) {
         string word_hyp = wordlist[i];
-        if (word_hyp == guess) {
-            // 'zero turns' to win, so add nothing; just continue
-            continue;
+        if (verbosity_levels>current_level) {
+            // Indent by current_level
+            cout << string(current_level*2, ' ') << "guess: " << guess << ", level: " << current_level;
+            cout << ", num_words_remaining: " << wordlist.size() << ", max_accumulator_value: " << max_accumulator_value;
+            cout << ", max_expectation: " << max_expectation << ", " << "expected_num_turns_to_win: " << expected_num_turns_to_win_accumulator / i;
+            cout << endl;
         }
         string hint = make_guess_hint(word_hyp, guess);
-        // If in cache, add cached value to accumulator
-        if (hint_expectation_cache.count(hint) > 0) {
+        if (word_hyp == guess) {
+            // 'zero turns' to win, so add nothing; just continue
+        } else if (hint_expectation_cache.count(hint) > 0) {
+            // If in cache, add cached value to accumulator
             auto [expected_num_turns_to_win, worst_case_num_turns_to_win] = hint_expectation_cache[hint];
             expected_num_turns_to_win_accumulator += expected_num_turns_to_win;
-            continue;
-        }
-        vector<string> words_remaining = get_compatible_words(guess, hint, wordlist);
-        if (words_remaining.size() == 1) {
-            expected_num_turns_to_win_accumulator += 1;
-            hint_expectation_cache[hint] = make_tuple(1, 1);
-        } else if (words_remaining.size() == 2) {
-            expected_num_turns_to_win_accumulator += 1.5;
-            hint_expectation_cache[hint] = make_tuple(1.5, 1.5);
         } else {
-            vector<string> useful_valid_guesses = valid_guesses;
-            // if (words_remaining.size() < 10) {
-            //     useful_valid_guesses = get_useful_guesses(words_remaining, valid_guesses);
-            // }
-            float expected_num_turns_to_win_given_guess_and_best_next_guess = max_expectation - 1;
-            int worst_case_num_turns_to_win_given_guess_and_best_next_guess = 0;
-            for (string next_guess : valid_guesses) {
-                auto [expected_num_turns_to_win_given_guess_and_next_guess, worst_case_num_turns_to_win_given_guess_and_next_guess] = get_expected_num_turns_to_win_given_guess_exhaustive(next_guess, words_remaining, valid_guesses, verbosity_levels-1, expected_num_turns_to_win_given_guess_and_best_next_guess) + 1;
-                if (expected_num_turns_to_win_given_guess_and_next_guess < expected_num_turns_to_win_given_guess_and_best_next_guess) {
-                    expected_num_turns_to_win_given_guess_and_best_next_guess = expected_num_turns_to_win_given_guess_and_next_guess;
-                    worst_case_num_turns_to_win_given_guess_and_best_next_guess = worst_case_num_turns_to_win_given_guess_and_next_guess;
+            vector<string> words_remaining = get_compatible_words(guess, hint, wordlist);
+            if (words_remaining.size() == 1) {
+                expected_num_turns_to_win_accumulator += 1;
+                hint_expectation_cache[hint] = make_tuple(1, 1);
+            } else if (words_remaining.size() == 2) {
+                expected_num_turns_to_win_accumulator += 1.5;
+                hint_expectation_cache[hint] = make_tuple(1.5, 1.5);
+            } else {
+                vector<string> useful_valid_guesses = valid_guesses;
+                // if (words_remaining.size() < 10) {
+                //     useful_valid_guesses = get_useful_guesses(words_remaining, valid_guesses);
+                // }
+                // cout << endl;
+                float expected_num_turns_to_win_given_guess_and_best_next_guess = max_expectation - 1;
+                int worst_case_num_turns_to_win_given_guess_and_best_next_guess = 0;
+                #pragma omp parallel for if (not verbosity_levels>current_level)
+                for (string next_guess : valid_guesses) {
+                    auto [expected_num_turns_to_win_given_guess_and_next_guess, worst_case_num_turns_to_win_given_guess_and_next_guess] =
+                        get_expected_num_turns_to_win_given_guess_exhaustive(next_guess, words_remaining, valid_guesses, verbosity_levels, current_level+1, expected_num_turns_to_win_given_guess_and_best_next_guess);
+                    expected_num_turns_to_win_given_guess_and_next_guess += 1;
+                    worst_case_num_turns_to_win_given_guess_and_next_guess += 1;
+                    #pragma omp critical
+                    if (expected_num_turns_to_win_given_guess_and_next_guess < expected_num_turns_to_win_given_guess_and_best_next_guess) {
+                        expected_num_turns_to_win_given_guess_and_best_next_guess = expected_num_turns_to_win_given_guess_and_next_guess;
+                        worst_case_num_turns_to_win_given_guess_and_best_next_guess = worst_case_num_turns_to_win_given_guess_and_next_guess;
+                    }
                 }
+                // cout << "\e[A";
+                expected_num_turns_to_win_accumulator += expected_num_turns_to_win_given_guess_and_best_next_guess;
+                worst_case_num_turns_to_win_given_guess_and_best_next_guess = max(worst_case_num_turns_to_win_given_guess_and_best_next_guess, worst_case_num_turns_to_win_given_guess_and_best_next_guess);
+                hint_expectation_cache[hint] = make_tuple(expected_num_turns_to_win_given_guess_and_best_next_guess, worst_case_num_turns_to_win_given_guess_and_best_next_guess);
             }
-            expected_num_turns_to_win_accumulator += expected_num_turns_to_win_given_guess_and_best_next_guess;
-            worst_case_num_turns_to_win_given_guess_and_best_next_guess = max(worst_case_num_turns_to_win_given_guess_and_best_next_guess, worst_case_num_turns_to_win_given_guess_and_best_next_guess);
-            hint_expectation_cache[hint] = make_tuple(expected_num_turns_to_win_given_guess_and_best_next_guess, worst_case_num_turns_to_win_given_guess_and_best_next_guess);
         }
+        cout << "\e[A";
         if (max_accumulator_value < expected_num_turns_to_win_accumulator) {
             break;
         }
-    }
-    if (verbosity_levels>0) {
-        cout << "expected_num_turns_to_win_accumulator: " << expected_num_turns_to_win_accumulator / wordlist.size() << endl;
-        cout << "++++++++++++++++++++++++++++++++++++++++" << endl;
     }
     return make_tuple(expected_num_turns_to_win_accumulator / wordlist.size(), worst_case_num_turns_to_win_given_guess);
 }
@@ -778,41 +829,43 @@ auto get_best_words_exhaustively(vector<string>& wordlist, vector<string>& valid
         cout << "Beginning exhaustive search" << endl;
     }
     string best_guess = "";
-    vector<tuple<string, float, int>> expected_and_worst_num_turns_to_win;
+    vector<tuple<string, float, int>> expected_and_worst_num_turns_to_win(valid_guesses.size());
     WordleSolver solver(wordlist, valid_guesses);
     // float best_ettw = get_expected_num_turns_to_win_by_greedy_strategy(solver, true);
-    // float best_ettw = 2.5;
+    float best_ettw = 2.5;
     bool threaded_verbosity = verbose;
-    #if defined(_OPENMP)
-        if (verbose) {
-            cout << "Using OpenMP in verbose mode will limit verbosity." << endl;
-            threaded_verbosity = false;
-        }
-    #endif
+    // #if defined(_OPENMP)
+    //     if (verbose) {
+    //         cout << "Using OpenMP in verbose mode will limit verbosity." << endl;
+    //         threaded_verbosity = false;
+    //     }
+    // #endif
     int guesses_checked = 0;
     // Reduce the expected_num_turns_to_win vector
-    #pragma omp parallel for schedule(dynamic) num_threads(MAX_THREADS) reduction(+:expected_num_turns_to_win)
-    for (string guess : valid_guesses) {
-        cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Starting guess: " << guess << endl;
-        auto [ettw, worst_case] = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, threaded_verbosity*3, best_ettw);
-        cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") ";
-        expected_and_worst_num_turns_to_win.push_back(tuple(guess, ettw, worst_case));
-        cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Finished guess: " << guess << endl;
-        // if (ettw < best_ettw) {
-        //     best_guess = guess;
-        //     best_ettw = ettw;
-        //     if (verbose) {
-        //         cout << "New best guess: " << best_guess << " with ettw = " << best_ettw << endl;
-        //     }
-        // } else if (verbose) {
-        //     cout << "Guess " << guess << " has ettw = " << ettw << ", which is worse than the best guess so far" << endl;
-        // }
+    // #pragma omp parallel for schedule(dynamic) num_threads(MAX_THREADS)
+    for (int i = 0; i < int(valid_guesses.size()); i++) {
+        string guess = valid_guesses[i];
+        // cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Starting guess: " << guess << endl;
+        auto [ettw, worst_case] = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, threaded_verbosity*4, 0, best_ettw);
+        // cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") ";
+        expected_and_worst_num_turns_to_win[i] = {guess, ettw, worst_case};
+        // cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Finished guess: " << guess << endl;
+        // #pragma omp critical
+        if (ettw < best_ettw) {
+            best_guess = guess;
+            best_ettw = ettw;
+            if (verbose) {
+                // cout << "New best guess: " << best_guess << " with ettw = " << best_ettw << endl;
+            }
+        } else if (verbose) {
+            // cout << "Guess " << guess << " has ettw = " << ettw << ", which is worse than the best guess so far" << endl;
+        }
     }
     if (verbose) {
         cout << "Finished exhaustive search. Guesses from worst to best:" << endl;
         // Sort
-        sort(expected_and_worst_num_turns_to_win.begin(), expected_and_worst_num_turns_to_win.end(), [](const tuple<string, float>& a, const tuple<string, float>& b) {
-            return get<1>(a) > get<1>(b);
+        sort(expected_and_worst_num_turns_to_win.begin(), expected_and_worst_num_turns_to_win.end(), [](const tuple<string, float, int>& a, const tuple<string, float, int>& b) {
+            return get<1>(a) < get<1>(b);
         });
         for (auto [guess, ettw, worst_case] : expected_and_worst_num_turns_to_win) {
             cout << guess << ": " << ettw << " (" << worst_case << ")" << endl;
@@ -1001,7 +1054,7 @@ int main(int argc, char** argv) {
     if (use_first_n_guesses > 0) {
         valid_guesses = vector<string>(valid_guesses.begin(), valid_guesses.begin() + use_first_n_guesses);
     }
-    if (word_gt == "random") {
+    if (word_gt == "random" or word_gt == "") {
         word_gt = wordlist[rand() % wordlist.size()];
     }
     // Initialise the solver
