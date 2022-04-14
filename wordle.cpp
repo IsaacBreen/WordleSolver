@@ -22,7 +22,7 @@
 
 using namespace std;
 
-#define MAX_THREADS 8
+#define MAX_THREADS 10
 #define LARGE_NUMBER 1000000
 
 // Read in the solutions file, a list of double-quoted words separated by spaces e.g. "cigar", "rebut", "sissy"...
@@ -652,12 +652,16 @@ int play_automatically(WordleSolver solver, string word_gt, bool verbose=false, 
     return num_turns + solver.num_turns_remaining();
 }
 
-float get_expected_num_turns_to_win_by_greedy_strategy(WordleSolver& solver, bool verbose=false) {
+float get_num_turns_to_win_by_greedy_strategy(WordleSolver& solver, bool verbose=false) {
     float expected_num_turns_to_win = 0;
+    #pragma omp parallel for reduction(+:expected_num_turns_to_win)
     for (string word : solver.wordlist_remaining) {
         auto num_turns_to_win = play_automatically(solver, word, false);
         if (verbose) {
-            cout << "Expected number of turns to win using greedy strategy when the word is " << word << ": " << num_turns_to_win << endl;
+            #pragma omp critical
+            {
+                cout << "Number of turns to win using greedy strategy when the word is " << word << ": " << num_turns_to_win << endl;
+            }
         }
         expected_num_turns_to_win += num_turns_to_win;
     }
@@ -709,101 +713,7 @@ float get_expected_num_turns_to_win(WordleSolver& solver, bool verbose=false) {
     return expected_num_turns_to_win;
 }
 
-template<typename Parent>
-class VirtualTerminal {
-public:
-    stringstream stream;
-    string current = "";
-    Parent* parent_multiterminal;
-
-    // So VirtualTerminal behaves like stringstream <<
-    template<typename T>
-    VirtualTerminal& operator<<(const T& t) {
-        stream << t;
-        return *this;
-    }
-
-    void set_parent(Parent* multiterminal) {
-        this->parent_multiterminal = multiterminal;
-    }
-
-    void clear() {
-        current = "";
-    }
-
-    void clearlastline() {
-        // Remove last line
-        int i = current.size() - 1;
-        while (i >= 0 && current[i] != '\n') {
-            i--;
-        }
-        if (i >= 0) {
-            current = current.substr(0, i);
-        }
-    }
-
-    void flush() {
-        current += stream.str();
-        stream.str("");
-        stream.clear();
-    }
-
-    void print() {
-        parent_multiterminal->print();
-    }
-};
-
-// A terminal that can be used to display multiple outputs, each of which can erase and rewrite its own lines
-class MultiTerminal {
-public:
-    vector<VirtualTerminal<MultiTerminal>*> terminals;
-    vector<int> max_height;
-
-    VirtualTerminal<MultiTerminal>* new_terminal(int max_height) {
-        VirtualTerminal<MultiTerminal>* terminal = new VirtualTerminal<MultiTerminal>();
-        this->terminals.push_back(terminal);
-        this->max_height.push_back(max_height);
-        return terminal;
-    }
-
-    string get_current() {
-        string result = "";
-        for (VirtualTerminal<MultiTerminal>* terminal_ptr : terminals) {
-            VirtualTerminal<MultiTerminal>& terminal = *terminal_ptr;
-            terminal.flush();
-            // Trim or pad to max height newlines
-            int num_lines = 0;
-            for (int i = 0; i < terminal.current.size(); i++) {
-                if (terminal.current[i] == '\n') {
-                    num_lines++;
-                }
-            }
-            if (num_lines < max_height[terminals.size()-1]) {
-                terminal.current += string(max_height[terminals.size()-1] - num_lines, '\n');
-            } else if (num_lines > max_height[terminals.size()-1]) {
-                // Get last max_height lines
-                int i = terminal.current.size() - 1;
-                while (i >= 0 && terminal.current[i] != '\n') {
-                    i--;
-                }
-                if (i >= 0) {
-                    terminal.current = terminal.current.substr(i+1);
-                }
-            }
-            result += terminal.current;
-        }
-        return result;
-    }
-
-    void print() {
-        string current = get_current();
-        cout << current;
-        cout << "Printed!" << endl;
-    }
-};
-
-template<typename T>
-tuple<float, int> get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<string>& wordlist, vector<string>& valid_guesses, int verbosity_levels=0, int current_level=0, T& out=cout, float max_expectation=10) {
+tuple<float, int> get_expected_num_turns_to_win_given_guess_exhaustive(string guess, vector<string>& wordlist, vector<string>& valid_guesses, int verbosity_levels=0, int current_level=0, float max_expectation=10) {
     if (max_expectation <= 0.67) {
         return make_tuple(max_expectation + LARGE_NUMBER, 0);
     }
@@ -811,20 +721,26 @@ tuple<float, int> get_expected_num_turns_to_win_given_guess_exhaustive(string gu
     int worst_case_num_turns_to_win_given_guess = 0;
     float max_accumulator_value = max_expectation * wordlist.size();
     map<string, tuple<float, int>> hint_expectation_cache;
-    bool stop = false;
     for (int i = 0; i < int(wordlist.size()); i++) {
-        if (stop) continue;
         string word_hyp = wordlist[i];
         if (verbosity_levels>current_level) {
             // Indent by current_level
             #pragma omp critical
             {
-                out << string(current_level*2, ' ') << "guess: " << guess << ", level: " << current_level;
-                out << ", num_words_remaining: " << wordlist.size() << ", max_accumulator_value: " << max_accumulator_value;
-                out << ", max_expectation: " << max_expectation << ", " << "expected_num_turns_to_win: " << expected_num_turns_to_win_accumulator / i;
-                out << "\n";
-                cout << "Printing" << endl;
-                out.print();
+                cout << string(current_level*4, ' ') << ">> ";
+                // Print 'i/N' where is padded to length of N with spaces
+                string wordlist_size_str = to_string(wordlist.size());
+                string i_str = to_string(i);
+                // Pad
+                i_str = string(wordlist_size_str.size() - i_str.size(), ' ') + i_str;
+                cout << "(" << i_str << "/" << wordlist_size_str << ") ";
+                cout << "WORD LOOP: ";
+                cout << "word_hyp: " << word_hyp << ", ";
+                cout << "guess: " << guess << ", level: " << current_level;
+                cout << ", num_words_remaining: " << wordlist.size() << ", max_accumulator_value: " << max_accumulator_value;
+                cout << ", max_expectation: " << max_expectation << ", " << "expected_num_turns_to_win: " << expected_num_turns_to_win_accumulator / i;
+                cout << endl;
+                // out << "\e[A";
             }
         }
         string hint = make_guess_hint(word_hyp, guess);
@@ -844,34 +760,46 @@ tuple<float, int> get_expected_num_turns_to_win_given_guess_exhaustive(string gu
                     expected_num_turns_to_win_accumulator += 1.5;
                     hint_expectation_cache[hint] = make_tuple(1.5, 1.5);
                 } else {
-                    vector<string> useful_valid_guesses = valid_guesses;
-                    // if (words_remaining.size() < 10) {
-                    //     useful_valid_guesses = get_useful_guesses(words_remaining, valid_guesses);
-                    // }
-                    // out << endl;
                     float expected_num_turns_to_win_given_guess_and_best_next_guess = max_expectation - 1;
                     int worst_case_num_turns_to_win_given_guess_and_best_next_guess = 0;
-                    for (string next_guess : valid_guesses) {
-                        auto [expected_num_turns_to_win_given_guess_and_next_guess, worst_case_num_turns_to_win_given_guess_and_next_guess] =
-                            get_expected_num_turns_to_win_given_guess_exhaustive(next_guess, words_remaining, valid_guesses, verbosity_levels, current_level+1, out, expected_num_turns_to_win_given_guess_and_best_next_guess);
-                        expected_num_turns_to_win_given_guess_and_next_guess += 1;
-                        worst_case_num_turns_to_win_given_guess_and_next_guess += 1;
-                        {
-                            if (expected_num_turns_to_win_given_guess_and_next_guess < expected_num_turns_to_win_given_guess_and_best_next_guess) {
-                                expected_num_turns_to_win_given_guess_and_best_next_guess = expected_num_turns_to_win_given_guess_and_next_guess;
-                                worst_case_num_turns_to_win_given_guess_and_best_next_guess = worst_case_num_turns_to_win_given_guess_and_next_guess;
+                    for (int j = 0; j < int(valid_guesses.size()); j++) {
+                        string next_guess = valid_guesses[j];
+                        if (verbosity_levels>current_level) {
+                            // Indent by current_level
+                            #pragma omp critical
+                            {
+                                cout << string(current_level*4+2, ' ') << ">> ";
+                                // Print 'i/N' where is padded to length of N with spaces
+                                string valid_guesses_size_str = to_string(valid_guesses.size());
+                                string j_str = to_string(j);
+                                // Pad
+                                j_str = string(valid_guesses_size_str.size() - j_str.size(), ' ') + j_str;
+                                cout << "(" << j_str << "/" << valid_guesses_size_str << ") ";
+                                cout << "GUESS LOOP: ";
+                                cout << "next guess: " << guess;
+                                cout << ", expected_num_turns_to_win_given_guess_and_best_next_guess: " << expected_num_turns_to_win_given_guess_and_best_next_guess;
+                                cout << ", worst_case_num_turns_to_win_given_guess_and_best_next_guess: " << worst_case_num_turns_to_win_given_guess_and_best_next_guess;
+                                cout << endl;
                             }
                         }
+                        auto [expected_num_turns_to_win_given_guess_and_next_guess, worst_case_num_turns_to_win_given_guess_and_next_guess] =
+                            get_expected_num_turns_to_win_given_guess_exhaustive(next_guess, words_remaining, valid_guesses, verbosity_levels, current_level+1, expected_num_turns_to_win_given_guess_and_best_next_guess);
+                        expected_num_turns_to_win_given_guess_and_next_guess += 1;
+                        worst_case_num_turns_to_win_given_guess_and_next_guess += 1;
+                        if (expected_num_turns_to_win_given_guess_and_next_guess < expected_num_turns_to_win_given_guess_and_best_next_guess) {
+                            expected_num_turns_to_win_given_guess_and_best_next_guess = expected_num_turns_to_win_given_guess_and_next_guess;
+                            worst_case_num_turns_to_win_given_guess_and_best_next_guess = worst_case_num_turns_to_win_given_guess_and_next_guess;
+                        }
+                        // cout << "\e[A";
                     }
-                    // out << "\e[A";
                     expected_num_turns_to_win_accumulator += expected_num_turns_to_win_given_guess_and_best_next_guess;
                     worst_case_num_turns_to_win_given_guess_and_best_next_guess = max(worst_case_num_turns_to_win_given_guess_and_best_next_guess, worst_case_num_turns_to_win_given_guess_and_best_next_guess);
                     hint_expectation_cache[hint] = make_tuple(expected_num_turns_to_win_given_guess_and_best_next_guess, worst_case_num_turns_to_win_given_guess_and_best_next_guess);
                 }
             }
-            // out << "\e[A";
+            // cout << "\e[A";
             if (max_accumulator_value < expected_num_turns_to_win_accumulator) {
-                stop = true;
+                break;
             }
         }
     }
@@ -885,8 +813,8 @@ auto get_best_words_exhaustively(vector<string>& wordlist, vector<string>& valid
     }
     string best_guess = "";
     vector<tuple<string, float, int>> expected_and_worst_num_turns_to_win(valid_guesses.size());
-    WordleSolver solver(wordlist, valid_guesses);
-    // float best_ettw = get_expected_num_turns_to_win_by_greedy_strategy(solver, true);
+    // WordleSolver solver(wordlist, valid_guesses);
+    // float best_ettw = get_num_turns_to_win_by_greedy_strategy(solver, true);
     float best_ettw = 2.5;
     bool threaded_verbosity = verbose;
     #if defined(_OPENMP)
@@ -897,35 +825,28 @@ auto get_best_words_exhaustively(vector<string>& wordlist, vector<string>& valid
     #endif
     int guesses_checked = 0;
     // Reduce the expected_num_turns_to_win vector
-    MultiTerminal multiterminal;
     #pragma omp parallel for schedule(dynamic) num_threads(MAX_THREADS)
     for (int i = 0; i < int(valid_guesses.size()); i++) {
         string guess = valid_guesses[i];
-        VirtualTerminal<MultiTerminal>* sout_ptr;
         #pragma omp critical
         {
-            sout_ptr = multiterminal.new_terminal(4);
+            cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Starting guess: " << guess << endl;
         }
-        VirtualTerminal<MultiTerminal>& sout = *sout_ptr;
-        sout << "Checking " << guess << "...\n";
-        sout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Starting guess: " << guess << "\n";
-        // #pragma omp critical
-        // {
-        //     multiterminal.print();
-        // }
-        auto [ettw, worst_case] = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, verbose*2, 0, sout, best_ettw);
-        sout << "(" << guesses_checked << "/" << valid_guesses.size() << ") ";
-        expected_and_worst_num_turns_to_win[i] = {guess, ettw, worst_case};
-        // cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Finished guess: " << guess << endl;
-        // #pragma omp critical
-        if (ettw < best_ettw) {
-            best_guess = guess;
-            best_ettw = ettw;
-            if (verbose) {
-                // cout << "New best guess: " << best_guess << " with ettw = " << best_ettw << endl;
+        auto [ettw, worst_case] = get_expected_num_turns_to_win_given_guess_exhaustive(guess, wordlist, valid_guesses, threaded_verbosity*1, 0, best_ettw);
+        #pragma omp critical
+        {
+            cout << "(" << guesses_checked << "/" << valid_guesses.size() << ") " << "Finished guess: " << guess << endl;
+            guesses_checked++;
+            if (ettw < best_ettw) {
+                best_guess = guess;
+                best_ettw = ettw;
+                if (verbose) {
+                    cout << "New best guess: " << best_guess << " with ettw = " << best_ettw << endl;
+                }
+            } else if (verbose) {
+                cout << "Guess " << guess << " has ettw = " << ettw << ", which is worse than the best guess so far" << endl;
             }
-        } else if (verbose) {
-            // cout << "Guess " << guess << " has ettw = " << ettw << ", which is worse than the best guess so far" << endl;
+            expected_and_worst_num_turns_to_win[i] = {guess, ettw, worst_case};
         }
     }
     if (verbose) {
