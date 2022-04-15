@@ -95,7 +95,7 @@ string hint_to_string(string hint) {
             ss << "\033[32m" << hint[i] << "\033[0m";
         } else if (hint[i] == 'y') {
             // Yellow
-            cout << "\033[33m" << hint[i] << "\033[0m";
+            ss << "\033[33m" << hint[i] << "\033[0m";
         } else {
             // Gray
             ss << "\033[37m" << hint[i] << "\033[0m";
@@ -305,9 +305,40 @@ tuple<string, double> get_expected_num_turns_to_win(vector<string>& wordlist, ve
 map<string, int> get_hint_frequencies(string guess, vector<string>& wordlist) {
     map<string, int> hint_frequencies;
     for (auto word_hyp : wordlist) {
-        hint_frequencies[make_guess_hint(word_hyp, guess)]++;
+        hint_frequencies[make_guess_hint(word_hyp, guess)] += 1;
     }
+    // cout << "hint_frequencies: ";
+    // for (auto hint_freq : hint_frequencies) {
+    //     cout << hint_freq.first << ": " << hint_freq.second << ", ";
+    // }
+    // cout << endl;
     return hint_frequencies;
+}
+
+string next_step_details(int frequency, int max_frequency, vector<string>& wordlist, vector<string>& valid_guesses) {
+    stringstream ss;
+    string best_next_guess = get_recommended_word(wordlist, valid_guesses);
+    string frequency_str = to_string(frequency);
+    while (frequency_str.length() < 3) {
+        frequency_str = " " + frequency_str;
+    }
+    float frequency_proportion = (float)frequency / wordlist.size();
+    // Print as a percentage with 2 decimal places.
+    string frequency_proportion_str = to_string(frequency_proportion).substr(0, 5);
+    // Also print a solid bar of length proportional to the frequency proportion
+    const int MAX_BAR_LENGTH = 50;
+    int bar_length = round((float)frequency / (float) max_frequency * MAX_BAR_LENGTH);
+    string bar = "[";
+    for (int i = 0; i < MAX_BAR_LENGTH; i++) {
+        if (i < bar_length - 1) {
+            bar += "■";
+        } else {
+            bar += "·";
+        }
+    }
+    bar += "]";
+    ss << best_next_guess << " " << frequency_str << "  " << frequency_proportion_str << "% " << bar << endl;
+    return ss.str();
 }
 
 // A class that manages a single game of Wordle. Provides methods for playing a single turn of the game either interactively or automatically,
@@ -376,33 +407,6 @@ public:
         return true;
     }
 
-    string next_step_details(string guess, string hint, int frequency) {
-        stringstream ss;
-        auto compatible_words = get_compatible_words(guess, hint, wordlist_remaining);
-        string best_next_guess = get_recommended_word(compatible_words, valid_guesses_remaining);
-        string frequency_str = to_string(frequency);
-        while (frequency_str.length() < 3) {
-            frequency_str = " " + frequency_str;
-        }
-        float frequency_proportion = (float)frequency / wordlist_remaining.size();
-        // Print as a percentage with 2 decimal places.
-        string frequency_proportion_str = to_string(frequency_proportion).substr(0, 5);
-        // Also print a solid bar of length proportional to the frequency proportion
-        const int MAX_BAR_LENGTH = 50;
-        int bar_length = round(frequency_proportion * MAX_BAR_LENGTH);
-        string bar = "[";
-        for (int i = 0; i < MAX_BAR_LENGTH; i++) {
-            if (i < bar_length - 1) {
-                bar += "■";
-            } else {
-                bar += "·";
-            }
-        }
-        bar += "]";
-        ss << hint_to_string(hint) << " " << best_next_guess << " " << frequency_str << "  " << frequency_proportion_str << "% " << bar << endl;
-        return ss.str();
-    }
-
     string prompt_for_guess(string suggestion="") {
         string guess;
         while (true) {
@@ -425,16 +429,22 @@ public:
                 cout << "Information gain for guess " << guess << ": " << get_expected_information_gain(guess, wordlist_remaining) << " bits" << endl;
                 map<string, int> hint_frequencies = get_hint_frequencies(guess, wordlist_remaining);
                 cout << "Number of compatible hint configurations: " << hint_frequencies.size() << endl;
+                cout << "Hint frequencies: " << endl;
+                for (auto [hint, frequency] : hint_frequencies) {
+                    cout << hint_to_string(hint) << ": " << frequency << endl;
+                }
                 // Order from most frequent to least frequent
                 vector<pair<string, int>> hint_frequencies_ordered;
-                for (auto hint_frequency : hint_frequencies) {
-                    hint_frequencies_ordered.push_back(make_pair(hint_frequency.first, hint_frequency.second));
+                for (auto [hint, frequency] : hint_frequencies) {
+                    hint_frequencies_ordered.push_back(make_pair(hint, frequency));
                 }
                 sort(hint_frequencies_ordered.begin(), hint_frequencies_ordered.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
                     return a.second > b.second;
                 });
-                for (auto hint_frequency : hint_frequencies_ordered) {
-                    cout << next_step_details(guess, hint_frequency.first, hint_frequency.second);
+                int max_frequency = hint_frequencies_ordered[0].second;
+                for (auto [hint, frequency] : hint_frequencies_ordered) {
+                    auto wordlist_remaining_after_guess = get_compatible_words(guess, hint, wordlist_remaining);
+                    cout << next_step_details(frequency, max_frequency, wordlist_remaining_after_guess, valid_guesses);
                 }
                 cout << "Do you want to continue? (press Enter or type another guess): ";
                 string continue_str;
@@ -806,7 +816,6 @@ tuple<float, int> get_expected_num_turns_to_win_given_guess_exhaustive(string gu
     return make_tuple(expected_num_turns_to_win_accumulator / wordlist.size(), worst_case_num_turns_to_win_given_guess);
 }
 
-
 auto get_best_words_exhaustively(vector<string>& wordlist, vector<string>& valid_guesses, bool verbose=true) {
     if (verbose) {
         cout << "Beginning exhaustive search" << endl;
@@ -873,7 +882,6 @@ auto get_best_word_exhaustively(vector<string>& wordlist, vector<string>& valid_
     }
     return tuple(best_guess, best_ettw);
 }
-
 
 void calculate_best_opening(vector<string> wordlist, vector<string> valid_guesses, bool verbose=false) {
     cout << "Calculating best opening" << endl;
