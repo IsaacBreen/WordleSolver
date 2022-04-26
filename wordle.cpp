@@ -227,6 +227,14 @@ double get_expected_information_gain(string guess, vector<string>& wordlist) {
     return cumulative_information_gain / wordlist.size();
 }
 
+double get_expected_num_words_remaining(string guess, vector<string>& wordlist) {
+    double num_words_remaining = 0;
+    for (auto word_hyp : wordlist) {
+        num_words_remaining += get_num_compatible_words(guess, make_guess_hint(word_hyp, guess), wordlist);
+    }
+    return num_words_remaining / wordlist.size();
+}
+
 tuple<vector<string>, double> get_recommendation(vector<string>& wordlist, vector<string>& valid_guesses) {
     // auto t0 = chrono::high_resolution_clock::now();
     vector<double> expected_information_gains(valid_guesses.size(), false);
@@ -427,6 +435,7 @@ public:
         if (guess != suggestion) {
             while (true) {
                 cout << "Information gain for guess " << guess << ": " << get_expected_information_gain(guess, wordlist_remaining) << " bits" << endl;
+                cout << "Expected number of words remaining: " << get_expected_num_words_remaining(guess, wordlist_remaining) << endl;
                 map<string, int> hint_frequencies = get_hint_frequencies(guess, wordlist_remaining);
                 cout << "Number of compatible hint configurations: " << hint_frequencies.size() << endl;
                 cout << "Hint frequencies: " << endl;
@@ -1050,7 +1059,7 @@ int main(int argc, char** argv) {
     if (use_first_n_guesses > 0) {
         valid_guesses = vector<string>(valid_guesses.begin(), valid_guesses.begin() + use_first_n_guesses);
     }
-    if (word_gt == "random" or word_gt == "") {
+    if (word_gt == "random" or mode == "random") {
         word_gt = wordlist[rand() % wordlist.size()];
     }
     // Initialise the solver
@@ -1078,6 +1087,9 @@ int main(int argc, char** argv) {
 // or
 // clang++ -std=c++20 -fopenmp -lomp wordle.cpp -o wordle && ./wordle
 // clang++ -std=c++20 -I/usr/lib/gcc/x86_64-linux-gnu/8/include -fopenmp=libiomp5 wordle.cpp -o wordle && ./wordle  --mode calculate-best-opener --verbose
+//
+// g++ -std=c++20 -fopenmp -lomp -I"$(brew --prefix libomp)/include" -L"$(brew --prefix libomp)/lib" wordle.cpp
+//
 // Using Emscripten and Node:
 // emcc -O3 -std=c++20 -sASSERTIONS -s NO_DISABLE_EXCEPTION_CATCHING -s NODERAWFS=1 wordle.cpp -o wordle.js && node wordle.js
 // Export using emcc
