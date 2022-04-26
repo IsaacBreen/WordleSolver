@@ -111,7 +111,12 @@
     "variant": "cpp",
     "iterator": "cpp",
     "memory_resource": "cpp",
-    "stop_token": "cpp"
+    "stop_token": "cpp",
+    "cfenv": "cpp",
+    "csignal": "cpp",
+    "format": "cpp",
+    "strstream": "cpp",
+    "typeindex": "cpp"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "/usr/bin/clang++",
