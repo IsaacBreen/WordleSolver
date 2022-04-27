@@ -1,4 +1,4 @@
 #include <array>
 
 constexpr std::array words = {
-    "sissy", "rebut", "cigar"};
+    "rebut", "sissy", "humph", "cigar", "awake"};

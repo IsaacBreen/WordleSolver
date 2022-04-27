@@ -1,4 +1,4 @@
 #include <array>
 
 constexpr std::array guesses = {
-    "aahed", "rebut", "cigar", "aalii", "sissy", "aargh"};
+    "rebut", "aalii", "aargh", "sissy", "humph", "aahed", "cigar", "awake", "aarti", "abaca"};

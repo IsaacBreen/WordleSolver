@@ -28,11 +28,7 @@
 
 using namespace std;
 
-
-template<typename Base>
-constexpr Base mypow(Base base, int exponent) {
-    return (exponent == 0) ? 1 : base * mypow(base, exponent - 1);
-}
+#pragma once
 
 // Take a ground truth word and a guess and return the guess result
 constexpr auto make_hint(auto word, auto guess) {
@@ -88,6 +84,25 @@ constexpr const char* hint_to_string(Hint hint) {
     return result;
 }
 
+constexpr const char* hint_to_pretty_string(Hint hint) {
+    // Like hint_to_string but uses colour escape sequences
+    auto result = hint_to_string(hint);
+    char* pretty_result = new char[WORD_LENGTH+1];
+    for (int i = 0; i < WORD_LENGTH; i++) {
+        if (result[i] == 'b') {
+            pretty_result[i] = '\033[1;30m';
+        } else if (result[i] == 'y') {
+            pretty_result[i] = '\033[1;33m';
+        } else {
+            pretty_result[i] = '\033[1;32m';
+        }
+        pretty_result[i] += result[i];
+        pretty_result[i] += '\033[0m';
+    }
+    pretty_result[WORD_LENGTH] = '\0';
+    return pretty_result;
+}
+
 CONST_TYPE array<array<Hint, NUM_GUESSES>, NUM_WORDS> precalculate_hints(auto words, auto guesses) {
     // Returns an array of dimensions NUM_WORDS x NUM_GUESSES
     array<array<Hint, NUM_GUESSES>, NUM_WORDS> hints;
@@ -101,3 +116,7 @@ CONST_TYPE array<array<Hint, NUM_GUESSES>, NUM_WORDS> precalculate_hints(auto wo
 
 // Not an error, despite what VSCode says
 CONST_TYPE auto hints = precalculate_hints(words, guesses);
+
+Hint get_hint(Word word, Word guess) {
+    return hints[word][guess];
+}

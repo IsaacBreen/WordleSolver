@@ -24,15 +24,18 @@
 #include <time.h>
 
 // hint.cpp
-#include <hint.hpp>
 #include <common.hpp>
-#include <word.hpp>
 #include <data/data.hpp>
+#include <hint.hpp>
+#include <compatibility.hpp>
+#include <user.hpp>
 
 using namespace std;
 
 
 int main()
 {
+    print_compatibility_matrix();
 
+    
 }
