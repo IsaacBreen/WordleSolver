@@ -43,15 +43,15 @@ void _print_compatibility_matrix(Word guess, Word word) {
     cout << "\033[0m" << endl;
 }
 
-void print_compatibility_matrix(Word guess, Word word) {
-    print_compatibility_matrix_header();
-    _print_compatibility_matrix(guess, word);
-}
-
 void _print_compatibility_matrix(Word guess) {
     for (int w = 0; w < NUM_WORDS; w++) {
         _print_compatibility_matrix(guess, w);
     }
+}
+
+void print_compatibility_matrix(Word guess, Word word) {
+    print_compatibility_matrix_header();
+    _print_compatibility_matrix(guess, word);
 }
 
 void print_compatibility_matrix(Word guess) {
@@ -65,5 +65,4 @@ void print_compatibility_matrix() {
         _print_compatibility_matrix(g);
     }
     cout << endl;
-
 }

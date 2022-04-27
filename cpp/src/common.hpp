@@ -33,6 +33,7 @@ using namespace std;
 
 using Hint = int;
 using Word = int;
+using Guess = int;
 using GuessHint = int;
 using HintString = string;
 using WordString = string;
@@ -40,7 +41,12 @@ using GuessHintString = string;
 
 using PackedWordlist = bitset<NUM_WORDS>;
 
-auto PackedWordlistAll = PackedWordlist(1);
+// Initialize bitset to all 1s
+PackedWordlist ALL_WORDS = PackedWordlist().set();
+
+#define BIG_NUMBER 1000000
+
+#define DEBUG true
 
 #define CONST_TYPE constexpr
 #define READ_CSV

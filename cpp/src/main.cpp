@@ -29,13 +29,16 @@
 #include <hint.hpp>
 #include <compatibility.hpp>
 #include <user.hpp>
+#include<optimiser.hpp>
 
 using namespace std;
 
 
 int main()
 {
-    print_compatibility_matrix();
-
-    
+    // print_compatibility_matrix();
+    cout << "Here" << endl;
+    find_optimal_strategy();
+    // cout << PackedWordlist().set() << endl;
+    return 0;
 }

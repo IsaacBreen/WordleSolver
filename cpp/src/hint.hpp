@@ -106,7 +106,9 @@ constexpr const char* hint_to_pretty_string(Hint hint) {
 CONST_TYPE array<array<Hint, NUM_GUESSES>, NUM_WORDS> precalculate_hints(auto words, auto guesses) {
     // Returns an array of dimensions NUM_WORDS x NUM_GUESSES
     array<array<Hint, NUM_GUESSES>, NUM_WORDS> hints;
+    #pragma omp parallel for
     for (int i = 0; i < NUM_WORDS; i++) {
+        if (DEBUG and i%100==0) cout << "Precomputing hints: " << (float)i/NUM_WORDS*100 << "%" << endl;
         for (int j = 0; j < NUM_GUESSES; j++) {
             hints[i][j] = make_hint(words[i], guesses[j]);
         }
