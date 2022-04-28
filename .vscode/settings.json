@@ -116,7 +116,8 @@
     "csignal": "cpp",
     "format": "cpp",
     "strstream": "cpp",
-    "typeindex": "cpp"
+    "typeindex": "cpp",
+    "*.ipp": "cpp"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "/usr/bin/clang++",

@@ -36,8 +36,9 @@ using namespace std;
 
 int main()
 {
-    // print_compatibility_matrix();
-    find_optimal_strategy();
+    print_compatibility_matrix(0,100);
+    cout << "Number of words compatible with guess 'fluid' and hint 'bybgb' is " << num_compatible_words(100, string_to_hint("bybgb"), ALL_WORDS) << endl;
+    // find_optimal_strategy();
     // cout << PackedWordlist().set() << endl;
     return 0;
 }

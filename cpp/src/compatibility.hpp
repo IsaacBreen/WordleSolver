@@ -22,10 +22,24 @@
 #include <functional>
 #include <iterator>
 #include <time.h>
+#include <filesystem>
+#include <fstream>
+// Boost boost::archive::binary_oarchive for array and bitset
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+// Boost boost::serialization for vector
+#include <boost/serialization/vector.hpp>
+// Boost boost::serialization for bitset
+#include <boost/serialization/bitset.hpp>
+// Boost boost::serialization for array
+#include <boost/serialization/array.hpp>
+// For compression
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 #include <omp.h>
-// #if defined(_OPENMP)
-//     #include <omp.h>
-// #endif
+#if defined(_OPENMP)
+    #include <omp.h>
+#endif
 
 #include <common.hpp>
 #include <utils.hpp>
@@ -33,6 +47,8 @@
 #include <hint.hpp>
 
 #pragma once
+
+using CompatibilityMatrix = array<array<PackedWordlist, NUM_GUESSES>, NUM_HINT_CONFIGS>;
 
 
 bool word_is_compatible_with_guess_hint(WordString word, WordString guess, Hint hint) {
@@ -59,7 +75,7 @@ bool word_is_compatible_with_guess_hint(WordString word, WordString guess, Hint 
 }
 
 CONST_TYPE auto precompute_compatibility_matrix() {
-    array<array<PackedWordlist, NUM_GUESSES>, NUM_HINT_CONFIGS> compatibility_matrix;
+    CompatibilityMatrix compatibility_matrix;
     for (int h = 0; h < NUM_HINT_CONFIGS; h++) {
         if (DEBUG and h%3==0) cout << "Precomputing compatibility matrix: " << (float)h/NUM_HINT_CONFIGS*100 << "%" << endl;
         #pragma omp parallel for
@@ -72,7 +88,37 @@ CONST_TYPE auto precompute_compatibility_matrix() {
     return compatibility_matrix;
 }
 
-CONST_TYPE auto compatibility_matrix = precompute_compatibility_matrix();
+void save_compatibility_matrix(string path, CompatibilityMatrix& compatibility_matrix) {
+    ofstream ofs(path);
+    boost::archive::binary_oarchive oa(ofs);
+    oa << compatibility_matrix;
+    ofs.close();
+}
+
+auto load_compatibility_matrix(string path) {
+    ifstream ifs(path);
+    boost::archive::binary_iarchive ia(ifs);
+    CompatibilityMatrix compatibility_matrix;
+    ia >> compatibility_matrix;
+    ifs.close();
+    return compatibility_matrix;
+}
+
+CONST_TYPE auto precompute_compatibility_matrix_cached() {
+    // Load from file if it exists
+    string path = "data/cache/compatibility_matrix";
+    if (filesystem::exists(path)) {
+        cout << "Loading compatibility matrix from " << path << endl;
+        return load_compatibility_matrix(path);
+    } else {
+        cout << "Precomputing compatibility matrix and saving to " << path << endl;
+        auto compatibility_matrix = precompute_compatibility_matrix();
+        save_compatibility_matrix(path, compatibility_matrix);
+        return compatibility_matrix;
+    }
+}
+
+CONST_TYPE auto compatibility_matrix = precompute_compatibility_matrix_cached();
 
 bool word_is_compatible_with_guess_hint(Word word, Word guess, Hint hint) {
     return compatibility_matrix[hint][guess][word];
@@ -83,7 +129,11 @@ PackedWordlist get_compatible_words(Word guess, Hint hint, PackedWordlist wordli
     return wordlist & compatibility_matrix[hint][guess];
 }
 
+
 size_t size(PackedWordlist wordlist) {
     return wordlist.count();
 }
 
+int num_compatible_words(Word guess, Hint hint, PackedWordlist wordlist) {
+    return size(get_compatible_words(guess, hint, wordlist));
+}

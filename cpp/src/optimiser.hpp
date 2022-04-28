@@ -85,10 +85,8 @@ Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_rem
 
             Hint hyp_hint = get_hint(hyp_word, guess);
             PackedWordlist hyp_wordlist_remaining = get_compatible_words(guess, hyp_hint, wordlist);
-            if (levels_to_print>0) cout << "Guess: " << guesses[guess] << " max_Exp_turns_remaining_stop: " << max_Exp_turns_remaining_stop << " " << hyp_wordlist_remaining;
-            // if (levels_to_print>0) {
-            //     cout << "Hypothesis: " << words[hyp_word] << ", guess: " << guesses[guess] << " " << hint_to_string(hyp_hint) << " " << hyp_wordlist_remaining << endl;
-            // }
+            // if (levels_to_print>0) cout << "Guess: " << guesses[guess] << " max_Exp_turns_remaining_stop: " << max_Exp_turns_remaining_stop << " " << hyp_wordlist_remaining.count() << " " << hyp_hint;
+            // if (levels_to_print>0) cout << "Hypothesis: " << words[hyp_word] << ", guess: " << guesses[guess] << " " << hint_to_string(hyp_hint) << " " << hyp_wordlist_remaining << endl;
             switch (hyp_wordlist_remaining.count()) {
                 case 0:
                     // something is wrong.
@@ -103,8 +101,9 @@ Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_rem
                     break;
                 default:
                     // If there are more than two words remaining, we need to guess
+                    if (hyp_wordlist_remaining.count() < 0) cout << "Something is wrong. Number of compatible words remaining is negative." << endl;
                     Strategy hyp_strategy = find_optimal_strategy(hyp_wordlist_remaining, best_strategy.expected_turns_to_win-1, levels_to_print-1);
-                    cout << " " << hyp_strategy.expected_turns_to_win;
+                    // cout << " " << hyp_strategy.expected_turns_to_win;
                     if (is_poisoned(hyp_strategy)) {
                         poison(strategy);
                     } else {
@@ -112,7 +111,7 @@ Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_rem
                     }
                     break;
             }
-            if (levels_to_print>0) cout << endl;
+            // if (levels_to_print>0) cout << endl;
         }
         if (not is_poisoned(strategy) and strategy.expected_turns_to_win < best_strategy.expected_turns_to_win) {
             best_strategy = strategy;
