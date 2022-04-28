@@ -2,6 +2,7 @@
 #include <data/data.hpp>
 #include <hint.hpp>
 #include <compatibility.hpp>
+#include <optimiser.hpp>
 #include <iostream>
 
 #pragma once
@@ -65,4 +66,10 @@ void print_compatibility_matrix() {
         _print_compatibility_matrix(g);
     }
     cout << endl;
+}
+
+void print_best_strategy() {
+    // Print the best strategy for each word
+    Strategy optimal_strategy = find_optimal_strategy(ALL_WORDS, 3, 1);
+    cout << "Best strategy for first guess: " << optimal_strategy.get_guess() << endl;
 }

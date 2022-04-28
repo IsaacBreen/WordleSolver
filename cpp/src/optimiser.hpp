@@ -27,7 +27,6 @@
 #include <data/data.hpp>
 #include <hint.hpp>
 #include <compatibility.hpp>
-#include <user.hpp>
 
 #include <iostream>
 using namespace std;
@@ -66,24 +65,35 @@ public:
     }
 };
 
+void poison(Strategy& strategy) {
+    strategy.expected_turns_to_win = -1;
+}
+
+bool is_poisoned(Strategy& strategy) {
+    return strategy.expected_turns_to_win == -1;
+}
+
 Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_remaining_stop, int levels_to_print) {
-    Strategy best_strategy;
+    Strategy best_strategy(-1);
     best_strategy.expected_turns_to_win = max_Exp_turns_remaining_stop;
     for (Guess guess = 0; guess < NUM_GUESSES; guess++) {
         Strategy strategy(guess);
         for (Word hyp_word = 0; hyp_word < NUM_WORDS; hyp_word++) {
-            if (not wordlist[hyp_word]) {
-                break;
-            }
-            if (best_strategy.expected_turns_to_win < strategy.expected_turns_to_win) {
-                break;
-            }
+            if (not wordlist[hyp_word]) break;
+            if (strategy.expected_turns_to_win >= best_strategy.expected_turns_to_win) break;
+            if (is_poisoned(strategy)) break;
+
             Hint hyp_hint = get_hint(hyp_word, guess);
             PackedWordlist hyp_wordlist_remaining = get_compatible_words(guess, hyp_hint, wordlist);
+            if (levels_to_print>0) cout << "Guess: " << guesses[guess] << " max_Exp_turns_remaining_stop: " << max_Exp_turns_remaining_stop << " " << hyp_wordlist_remaining;
             // if (levels_to_print>0) {
             //     cout << "Hypothesis: " << words[hyp_word] << ", guess: " << guesses[guess] << " " << hint_to_string(hyp_hint) << " " << hyp_wordlist_remaining << endl;
             // }
             switch (hyp_wordlist_remaining.count()) {
+                case 0:
+                    // something is wrong.
+                    cout << "Something is wrong. No compatible words remaining." << endl;
+                    exit(1);
                 case 1:
                     // If there is only one word remaining, there are zero turns left
                     break;
@@ -94,17 +104,26 @@ Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_rem
                 default:
                     // If there are more than two words remaining, we need to guess
                     Strategy hyp_strategy = find_optimal_strategy(hyp_wordlist_remaining, best_strategy.expected_turns_to_win-1, levels_to_print-1);
-                    strategy.expected_turns_to_win += (1 + hyp_strategy.expected_turns_to_win) / wordlist.count();
+                    cout << " " << hyp_strategy.expected_turns_to_win;
+                    if (is_poisoned(hyp_strategy)) {
+                        poison(strategy);
+                    } else {
+                        strategy.expected_turns_to_win += (1 + hyp_strategy.expected_turns_to_win) / wordlist.count();
+                    }
                     break;
             }
+            if (levels_to_print>0) cout << endl;
         }
-        if (strategy.expected_turns_to_win < best_strategy.expected_turns_to_win) {
+        if (not is_poisoned(strategy) and strategy.expected_turns_to_win < best_strategy.expected_turns_to_win) {
             best_strategy = strategy;
             if (levels_to_print > 0) {
                 cout << "New best strategy: " << guesses[guess] << " " << strategy.expected_turns_to_win << endl;
             }
         } else if (levels_to_print > 0) {
-            cout << "No improvement: " << guesses[guess] << " " << strategy.expected_turns_to_win << endl;
+            // cout << "No improvement: " << guesses[guess] << " " << strategy.expected_turns_to_win << endl;
+        }
+        if (best_strategy.expected_turns_to_win <= 0) {
+            break;
         }
     }
     if (levels_to_print > 0) {
@@ -114,5 +133,5 @@ Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_rem
 }
 
 Strategy find_optimal_strategy() {
-    return find_optimal_strategy(ALL_WORDS, BIG_NUMBER, 1);
+    return find_optimal_strategy(ALL_WORDS, 3, 1);
 }

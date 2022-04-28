@@ -23,6 +23,9 @@
 #include <iterator>
 #include <time.h>
 #include <omp.h>
+// #if defined(_OPENMP)
+//     #include <omp.h>
+// #endif
 
 #include <common.hpp>
 #include <utils.hpp>
@@ -57,9 +60,9 @@ bool word_is_compatible_with_guess_hint(WordString word, WordString guess, Hint 
 
 CONST_TYPE auto precompute_compatibility_matrix() {
     array<array<PackedWordlist, NUM_GUESSES>, NUM_HINT_CONFIGS> compatibility_matrix;
-    #pragma omp parallel for
     for (int h = 0; h < NUM_HINT_CONFIGS; h++) {
         if (DEBUG and h%3==0) cout << "Precomputing compatibility matrix: " << (float)h/NUM_HINT_CONFIGS*100 << "%" << endl;
+        #pragma omp parallel for
         for (int g = 0; g < NUM_GUESSES; g++) {
             for (int w = 0; w < NUM_WORDS; w++) {
                 compatibility_matrix[h][g][w] = word_is_compatible_with_guess_hint(words[w], guesses[g], h);

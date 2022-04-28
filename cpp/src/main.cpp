@@ -37,7 +37,6 @@ using namespace std;
 int main()
 {
     // print_compatibility_matrix();
-    cout << "Here" << endl;
     find_optimal_strategy();
     // cout << PackedWordlist().set() << endl;
     return 0;
