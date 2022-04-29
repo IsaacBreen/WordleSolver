@@ -62,4 +62,32 @@ PackedWordlist ALL_WORDS = PackedWordlist().set();
 
 constexpr int NUM_HINT_CONFIGS = mypow(3,WORD_LENGTH);
 
+
+string get_word(Word word) {
+    return words[word];
+}
+
+string get_guess(Guess guess) {
+    return guesses[guess];
+}
+
+Word get_word_index(string word) {
+    for (int i = 0; i < NUM_WORDS; i++) {
+        if (word == words[i]) {
+            return i;
+        }
+    }
+    exit(1);
+}
+
+Guess get_guess_index(string guess) {
+    for (int i = 0; i < NUM_GUESSES; i++) {
+        if (guess == guesses[i]) {
+            return i;
+        }
+    }
+    exit(1);
+}
+
+
 #endif // CONSTANTS_HPP

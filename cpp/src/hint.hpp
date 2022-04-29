@@ -108,11 +108,12 @@ CONST_TYPE array<array<Hint, NUM_GUESSES>, NUM_WORDS> precalculate_hints(auto wo
     array<array<Hint, NUM_GUESSES>, NUM_WORDS> hints;
     #pragma omp parallel for
     for (int i = 0; i < NUM_WORDS; i++) {
-        if (DEBUG and i%100==0) cout << "Precomputing hints: " << (float)i/NUM_WORDS*100 << "%" << endl;
+        if (DEBUG and i%100==0) cout << "Precomputing hints: " << (float)i/NUM_WORDS*100 << "%" << flush << "\r";
         for (int j = 0; j < NUM_GUESSES; j++) {
             hints[i][j] = make_hint(words[i], guesses[j]);
         }
     }
+    cout << "Precomputing hints: 100%" << endl;
     return hints;
 }
 
