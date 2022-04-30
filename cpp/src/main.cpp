@@ -42,7 +42,11 @@ int main()
     // cout << "Is the word 'ninja' compatible with guess 'soare' and hint 'bbybb'? " << word_is_compatible_with_guess_hint(get_word_index("ninja"), get_guess_index("soare"), string_to_hint("bbybb")) << endl;
     // cout << words[get_word_index("ninja")] << " " << guesses[get_guess_index("soare")] << endl;
     // cout << hint_to_string(string_to_hint("bbybb")) << endl;
-    find_optimal_strategy();
+    // PackedWordlist wordlist = ALL_WORDS;
+    // wordlist = get_compatible_words(get_guess_index("soare"), string_to_hint("ybbby"), wordlist);
+    // wordlist = get_compatible_words(get_guess_index("clint"), string_to_hint("bbbby"), wordlist);
+    find_optimal_strategy(wordlist, 3, 2);
+    // find_optimal_strategy();
     // cout << PackedWordlist().set() << endl;
     return 0;
 }

@@ -167,6 +167,6 @@ Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_rem
     return best_strategy;
 }
 
-Strategy find_optimal_strategy() {
-    return find_optimal_strategy(ALL_WORDS, 2.5, PRINT_LEVELS);
+Strategy find_optimal_strategy(PackedWordlist& wordlist) {
+    return find_optimal_strategy(wordlist, max_Exp_turns_remaining_stop, PRINT_LEVELS);
 }
