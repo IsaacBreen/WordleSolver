@@ -51,23 +51,26 @@ PackedWordlist ALL_WORDS = PackedWordlist().set();
 // #define CONST_TYPE constexpr
 // #define CONST_TYPE const
 #define CONST_TYPE
-#define READ_CSV
+// #define READ_CSV
 // CONST_TYPE must be const if READ_CSV is defined
 // #ifdef READ_CSV
 // #define CONST_TYPE const
 // #endif
 
-#define WORDLIST_CSV_PATH "data/wordlist.csv"
-#define GUESSES_CSV_PATH "data/guesslist.csv"
-
 constexpr int NUM_HINT_CONFIGS = mypow(3,WORD_LENGTH);
 
 
 string get_word(Word word) {
+    if (word < 0 or word >= NUM_WORDS) {
+        return "ERROR";
+    }
     return words[word];
 }
 
 string get_guess(Guess guess) {
+    if (guess < 0 or guess >= NUM_GUESSES) {
+        return "ERROR";
+    }
     return guesses[guess];
 }
 

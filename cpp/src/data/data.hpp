@@ -1,10 +1,13 @@
 #ifndef DATA_DATA_HPP
 #define DATA_DATA_HPP
 
+// #include <common.hpp>
 #include <utils.hpp>
 #include "generated_constants.hpp"
 
-#ifdef READ_CSV
+#define WORDLIST_CSV_PATH "data/wordlist.csv"
+#define GUESSES_CSV_PATH "data/guesslist.csv"
+
 // Read the data from guesslist.csv and wordlist.csv into array<char*, NUM_WORDS> and array<char*, NUM_GUESSES>
 // The csv files are newline-separated with no header.
 #include <fstream>
@@ -35,11 +38,9 @@ auto read_csv(auto filename) {
 const array words = read_csv<NUM_WORDS>(WORDLIST_CSV_PATH);
 const array guesses = read_csv<NUM_GUESSES>(GUESSES_CSV_PATH);
 
-#else
 // CONST_TYPE is constexpr; import the following:
-#include "wordlist.hpp"
-#include "guesslist.hpp"
+// #include "wordlist.hpp"
+// #include "guesslist.hpp"
 
-#endif
 
 #endif // DATA_HPP

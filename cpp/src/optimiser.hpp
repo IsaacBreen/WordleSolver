@@ -33,16 +33,17 @@ using namespace std;
 
 #pragma once
 
-#define PRINT_LEVELS 3
+#define PRINT_LEVELS 2
 
 class Strategy {
 private:
-    Guess guess;
     map<Hint, vector<Strategy>> substrategies;
 public:
-    float expected_turns_to_win = 0;
-    Strategy(Guess guess=0) {
+    Guess guess;
+    float expected_turns_to_win;
+    Strategy(Guess guess=-1) {
         this->guess = guess;
+        this->expected_turns_to_win = 0;
     }
     void add_substrategy(Hint hint, Strategy strategy) {
         substrategies[hint].push_back(strategy);
@@ -68,27 +69,28 @@ public:
 };
 
 void poison(Strategy& strategy) {
-    strategy.expected_turns_to_win = -1;
+    strategy.guess = -1;
 }
 
 bool is_poisoned(Strategy& strategy) {
-    return strategy.expected_turns_to_win == -1;
+    return strategy.guess == -1;
 }
 
-Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_remaining_stop, int levels_to_print) {
-    Strategy best_strategy();
+Strategy find_optimal_strategy(PackedWordlist& wordlist=ALL_WORDS, float max_Exp_turns_remaining_stop=3.1, int levels_to_print=PRINT_LEVELS) {
+    Strategy best_strategy;
     poison(best_strategy);
     best_strategy.expected_turns_to_win = max_Exp_turns_remaining_stop;
+    // cout << endl << endl << endl << endl;
     for (Guess guess = 0; guess < NUM_GUESSES; guess++) {
         if (levels_to_print > 0) {
             // Whitespace-pad the guess number
-            string guess_str = to_string(guess);
+            string guess_str = to_string(guess+1);
             string num_guesses_str = to_string(NUM_GUESSES);
             while (guess_str.length() < num_guesses_str.length()) {
                 guess_str = " " + guess_str;
             }
-            cout << "Trying guess " << guesses[guess] << " (" << guess_str << "/" << num_guesses_str << ")" << endl;
-            cout << "Best strategy so far: " << best_strategy.get_guess() << " with " << best_strategy.expected_turns_to_win << " turns remaining" << endl;
+            cout << "Trying guess " << get_guess(guess) << " (" << guess_str << "/" << num_guesses_str << ")" << endl;
+            cout << "Best strategy so far: " << get_guess(best_strategy.get_guess()) << " with " << best_strategy.expected_turns_to_win << " turns remaining. max_Exp_turns_remaining_stop=" << max_Exp_turns_remaining_stop << endl;
         }
         Strategy strategy(guess);
         int i = 0;
@@ -96,13 +98,13 @@ Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_rem
             if (strategy.expected_turns_to_win >= best_strategy.expected_turns_to_win) break;
             if (is_poisoned(strategy)) break;
             if (not wordlist[hyp_word]) continue;
+            if (hyp_word == guess) continue;
 
             Hint hyp_hint = get_hint(hyp_word, guess);
             PackedWordlist hyp_wordlist_remaining = get_compatible_words(guess, hyp_hint, wordlist);
 
             if (levels_to_print > 0) {
-                // Whitespace-pad the word number
-                string word_str = to_string(i);
+                string word_str = to_string(i+1);
                 i++;
                 string num_words_str = to_string(wordlist.count());
                 while (word_str.length() < num_words_str.length()) {
@@ -117,56 +119,50 @@ Strategy find_optimal_strategy(PackedWordlist& wordlist, float max_Exp_turns_rem
                     exit(1);
                 case 1:
                     // If there is only one word remaining, there are zero turns left
+                    strategy.expected_turns_to_win += 1.0 / wordlist.count();
                     break;
                 case 2:
                     // If there are two words remaining, there is a probability of 1/2 that we guess correctly
-                    strategy.expected_turns_to_win += 0.5 / wordlist.count();
+                    strategy.expected_turns_to_win += 1.5 / wordlist.count();
                     break;
                 default:
                     // If there are more than two words remaining, we need to guess
-                    if (hyp_wordlist_remaining.count() < 0) cout << "Something is wrong. Number of compatible words remaining is negative." << endl;
-                    Strategy hyp_strategy = find_optimal_strategy(hyp_wordlist_remaining, best_strategy.expected_turns_to_win-1, levels_to_print-1);
-                    // cout << " " << hyp_strategy.expected_turns_to_win;
-                    if (is_poisoned(hyp_strategy)) {
+                    if (hyp_wordlist_remaining.count() < 0) {
+                        cout << "Something is wrong. Number of compatible words remaining is negative." << endl;
+                        exit(1);
+                    }
+                    // In the best case, where there are three words remaining and they are mutually excluding upon misguess, it will take 2/3 turns to win on average.
+                    // If strategy.expected_turns_to_win + 2/3/wordlist.count() > best_strategy.expected_turns_to_win, then strategy can't possibly beat best_strategy.
+                    if (strategy.expected_turns_to_win + 2.0/3.0/wordlist.count() > best_strategy.expected_turns_to_win) {
                         poison(strategy);
+                        break;
                     } else {
-                        strategy.expected_turns_to_win += (1 + hyp_strategy.expected_turns_to_win) / wordlist.count();
+                        float max_Exp_turns_remaining_stop_hyp = (best_strategy.expected_turns_to_win - strategy.expected_turns_to_win) * wordlist.count() - 1;
+                        Strategy hyp_strategy = find_optimal_strategy(hyp_wordlist_remaining, max_Exp_turns_remaining_stop_hyp, levels_to_print-1);
+                        if (is_poisoned(hyp_strategy)) {
+                            poison(strategy);
+                        } else {
+                            strategy.expected_turns_to_win += (1 + hyp_strategy.expected_turns_to_win) / wordlist.count();
+                        }
                     }
                     break;
             }
-            if (levels_to_print > 0) {
-                cout << "\033[F";
-            }
+            if (levels_to_print > 0) cout << "\033[F";
         }
+        if (levels_to_print > 0) cout << endl;
         if (not is_poisoned(strategy) and strategy.expected_turns_to_win < best_strategy.expected_turns_to_win) {
             best_strategy = strategy;
-            if (levels_to_print > 0) {
-                // cout << "\033[F";
-                // cout << "New best strategy: " << guesses[guess] << " " << strategy.expected_turns_to_win << endl;
-            }
-        } else if (levels_to_print > 0) {
-            // cout << "\033[F";
-            // cout << "No improvement: " << guesses[guess] << " " << strategy.expected_turns_to_win << endl;
+            // if (levels_to_print > 0) cout << "\033[FNew best strategy: " << get_guess(guess) << " " << strategy.expected_turns_to_win << endl;
         }
-        // if (levels_to_print > 0) {
-        //     cout << "\033[F";
-        //     cout << "Best strategy so far: " << guesses[best_strategy.get_guess()] << " " << best_strategy.expected_turns_to_win << endl;
-        // }
-        // Undo previous line printed using escape code
-        if (levels_to_print > 0) {
-            cout << "\033[F\033[F";
-        }
-        if (best_strategy.expected_turns_to_win <= 0) {
-            break;
-        }
+        if (levels_to_print > 0) cout << "Best strategy so far: " << guesses[best_strategy.get_guess()] << " " << best_strategy.expected_turns_to_win << endl;
+        if (levels_to_print > 0) cout << "\033[F\033[F\033[F\033[F";
     }
-    if (levels_to_print > 0) {
-        // cout << "Best strategy: " << guesses[best_strategy.get_guess()] << " " << best_strategy.expected_turns_to_win << endl;
-        // cout << "\033[F";
+    if (levels_to_print == PRINT_LEVELS) {
+        for (int i = 0; i < PRINT_LEVELS; i++) {
+            cout << endl << endl << endl;
+        }
+        // cout << "Best strategy: " << guesses[best_strategy.get_guess()] << " (" << best_strategy.get_guess() << ") " << best_strategy.expected_turns_to_win << endl;
     }
     return best_strategy;
 }
 
-Strategy find_optimal_strategy(PackedWordlist& wordlist) {
-    return find_optimal_strategy(wordlist, max_Exp_turns_remaining_stop, PRINT_LEVELS);
-}

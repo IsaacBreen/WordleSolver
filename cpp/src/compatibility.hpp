@@ -97,7 +97,9 @@ CONST_TYPE auto precompute_compatibility_matrix_cached() {
     string path = "data/cache/compatibility_matrix.bin.gz";
     if (filesystem::exists(path)) {
         cout << "Loading compatibility matrix from " << path << endl;
-        return load_compatibility_matrix(path);
+        auto compatibility_matrix = load_compatibility_matrix(path);
+        cout << "Loaded compatibility matrix" << endl;
+        return compatibility_matrix;
     } else {
         cout << "Precomputing compatibility matrix and saving to " << path << endl;
         auto compatibility_matrix = precompute_compatibility_matrix();

@@ -113,7 +113,7 @@ CONST_TYPE array<array<Hint, NUM_GUESSES>, NUM_WORDS> precalculate_hints(auto wo
             hints[i][j] = make_hint(words[i], guesses[j]);
         }
     }
-    cout << "Precomputing hints: 100%" << endl;
+    cout << "Precomputing hints: 100%        " << endl;
     return hints;
 }
 
