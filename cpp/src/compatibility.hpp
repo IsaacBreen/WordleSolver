@@ -114,8 +114,8 @@ bool word_is_compatible_with_guess_hint(Word& word, Word& guess, Hint& hint) {
     return compatibility_matrix[hint][guess][word];
 }
 
-PackedWordlist get_compatible_words(Word guess, Hint hint, PackedWordlist& wordlist) {
-    PackedWordlist compatible_words;
+template<typename T>
+T get_compatible_words(Word guess, Hint hint, T& wordlist) {
     return wordlist & compatibility_matrix[hint][guess];
 }
 
@@ -124,6 +124,7 @@ size_t size(PackedWordlist wordlist) {
     return wordlist.count();
 }
 
-int num_compatible_words(Word guess, Hint hint, PackedWordlist& wordlist) {
-    return size(get_compatible_words(guess, hint, wordlist));
+template<typename T>
+int num_compatible_words(Word guess, Hint hint, T& wordlist) {
+    return get_compatible_words(guess, hint, wordlist).size();
 }

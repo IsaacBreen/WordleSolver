@@ -70,6 +70,8 @@ void print_compatibility_matrix() {
 
 void print_best_strategy() {
     // Print the best strategy for each word
-    Strategy optimal_strategy = find_optimal_strategy(ALL_WORDS, 3, 1);
+    auto wordlist = DenseWordlist(ALL_WORDS);
+    auto guesslist = ALL_GUESSES;
+    Strategy optimal_strategy = find_optimal_strategy(wordlist, guesslist, 3, 1);
     cout << "Best strategy for first guess: " << optimal_strategy.get_guess() << endl;
 }

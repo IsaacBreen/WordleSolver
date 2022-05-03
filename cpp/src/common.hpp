@@ -39,10 +39,171 @@ using HintString = string;
 using WordString = string;
 using GuessHintString = string;
 
+
+template<unsigned long N>
+class DenseWordlist {
+private:
+    bitset<N> data;
+public:
+    DenseWordlist() {
+        data.set();
+    }
+    DenseWordlist(bitset<N> data) {
+        this->data = data;
+    }
+    // Bitwise operators
+    DenseWordlist operator&(DenseWordlist other) {
+        return DenseWordlist(data & other.data);
+    }
+    DenseWordlist operator|(DenseWordlist other) {
+        return DenseWordlist(data | other.data);
+    }
+    // Equality
+    bool operator==(DenseWordlist& other) {
+        return data == other.data;
+    }
+    int size() {
+        return data.count();
+    }
+    // Getting and setting with square brackets
+    bool operator[](int index) {
+        return data[index];
+    }
+    void set(int index, bool value) {
+        data[index] = value;
+    }
+    // Convert to bitset<N> implicitly
+    operator bitset<N>() {
+        return data;
+    }
+    // Iterate over indices of set bits. Works by going through each bit and checking if it is set.
+    // If it is set, it should be iterated over.
+    class iterator {
+    private:
+        bitset<N> data;
+        int index;
+    public:
+        iterator(bitset<N> data, int index) {
+            this->data = data;
+            this->index = index;
+        }
+        int operator*() {
+            return index;
+        }
+        iterator& operator++() {
+            index++;
+            while (index < N && !data[index]) {
+                index++;
+            }
+            return *this;
+        }
+        bool operator!=(iterator other) {
+            return index != other.index;
+        }
+    };
+    iterator begin() {
+        int index = 0;
+        while (index < N && !data[index]) {
+            index++;
+        }
+        return iterator(data, index);
+    }
+    iterator end() {
+        return iterator(data, N);
+    }
+};
+
+class SparseWordlist {
+private:
+    vector<Word> data;
+public:
+    SparseWordlist() {}
+    SparseWordlist(vector<Word> data) {
+        this->data = data;
+    }
+    template<unsigned long N>
+    SparseWordlist(DenseWordlist<N>& data) {
+        for (int i = 0; i < N; i++) {
+            if (data[i]) {
+                this->data.push_back(i);
+            }
+        }
+    }
+    template<unsigned long N>
+    SparseWordlist(bitset<N>& data) {
+        for (int i = 0; i < N; i++) {
+            if (data[i]) {
+                this->data.push_back(i);
+            }
+        }
+    }
+    // Operators with bitset and DenseWordlist
+    template<unsigned long N>
+    SparseWordlist operator&(bitset<N> other) {
+        vector<Word> result;
+        for (Word word : data) {
+            if (other[word]) {
+                result.push_back(word);
+            }
+        }
+        return SparseWordlist(result);
+    }
+    template<unsigned long N>
+    SparseWordlist operator|(bitset<N> other) {
+        vector<Word> result;
+        for (Word word : data) {
+            if (other[word]) {
+                result.push_back(word);
+            }
+        }
+        for (int i = 0; i < other.size(); i++) {
+            if (other[i]) {
+                result.push_back(i);
+            }
+        }
+        return SparseWordlist(result);
+    }
+    template<unsigned long N>
+    SparseWordlist operator&(DenseWordlist<N> other) {
+        return *this & bitset<N>(other);
+    }
+    template<unsigned long N>
+    SparseWordlist operator|(DenseWordlist<N> other) {
+        return *this | bitset<N>(other);
+    }
+    // Equality
+    bool operator==(SparseWordlist& other) {
+        return data == other.data;
+    }
+    int size() {
+        return data.size();
+    }
+    // Getting and setting with square brackets
+    Word operator[](int index) {
+        return data[index];
+    }
+    void set(int index, Word value) {
+        data[index] = value;
+    }
+    // Iterator
+    auto begin() {
+        return data.begin();
+    }
+    auto end() {
+        return data.end();
+    }
+};
+
+// using PackedWordlist = PackedList<NUM_WORDS>;
 using PackedWordlist = bitset<NUM_WORDS>;
+
+
+
+
 
 // Initialize bitset to all 1s
 PackedWordlist ALL_WORDS = PackedWordlist().set();
+DenseWordlist<NUM_GUESSES> ALL_GUESSES;
 
 #define BIG_NUMBER 1000000
 
