@@ -48,6 +48,10 @@ public:
     DenseWordlist() {
         data.set();
     }
+    // For copying
+    DenseWordlist(const DenseWordlist& other) {
+        data = other.data;
+    }
     DenseWordlist(bitset<N> data) {
         this->data = data;
     }
@@ -66,7 +70,7 @@ public:
         return data.count();
     }
     // Getting and setting with square brackets
-    bool operator[](int index) {
+    bool operator[](int index) const {
         return data[index];
     }
     void set(int index, bool value) {
@@ -111,21 +115,30 @@ public:
     iterator end() {
         return iterator(data, N);
     }
+    float density() {
+        return (float)size() / N;
+    }
 };
 
 class SparseWordlist {
 private:
-    vector<Word> data;
+    set<Word> data;
 public:
     SparseWordlist() {}
+    // For copying
+    SparseWordlist(const SparseWordlist& other) {
+        data = other.data;
+    }
     SparseWordlist(vector<Word> data) {
-        this->data = data;
+        for (Word word : data) {
+            this->data.insert(word);
+        }
     }
     template<unsigned long N>
     SparseWordlist(DenseWordlist<N>& data) {
         for (int i = 0; i < N; i++) {
             if (data[i]) {
-                this->data.push_back(i);
+                this->data.insert(i);
             }
         }
     }
@@ -133,7 +146,7 @@ public:
     SparseWordlist(bitset<N>& data) {
         for (int i = 0; i < N; i++) {
             if (data[i]) {
-                this->data.push_back(i);
+                this->data.insert(i);
             }
         }
     }
@@ -150,15 +163,13 @@ public:
     }
     template<unsigned long N>
     SparseWordlist operator|(bitset<N> other) {
-        vector<Word> result;
+        SparseWordlist result;
         for (Word word : data) {
-            if (other[word]) {
-                result.push_back(word);
-            }
+            result.set(word, true);
         }
-        for (int i = 0; i < other.size(); i++) {
+        for (int i = 0; i < N; i++) {
             if (other[i]) {
-                result.push_back(i);
+                result.set(i, true);
             }
         }
         return SparseWordlist(result);
@@ -179,11 +190,19 @@ public:
         return data.size();
     }
     // Getting and setting with square brackets
-    Word operator[](int index) {
-        return data[index];
+    Word operator[](int index) const {
+        // Check if the index is in the set
+        if (data.find(index) != data.end()) {
+            return index;
+        }
     }
-    void set(int index, Word value) {
-        data[index] = value;
+    void set(int index, bool value) {
+        bool is_in_set = data.find(index) != data.end();
+        if (value && !is_in_set) {
+            data.insert(index);
+        } else if (!value && is_in_set) {
+            data.erase(index);
+        }
     }
     // Iterator
     auto begin() {
@@ -191,6 +210,9 @@ public:
     }
     auto end() {
         return data.end();
+    }
+    float density() {
+        return 1.0;
     }
 };
 

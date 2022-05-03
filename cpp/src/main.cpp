@@ -52,17 +52,18 @@ int main()
     // cout << words[get_word_index("ninja")] << " " << guesses[get_guess_index("soare")] << endl;
     // cout << hint_to_string(string_to_hint("bbybb")) << endl;
 
-    auto guesslist = ALL_GUESSES;
-    auto wordlist = SparseWordlist(ALL_WORDS);
-    wordlist = get_compatible_words(get_guess_index("soare"), string_to_hint("ybbby"), wordlist);
-    wordlist = get_compatible_words(get_guess_index("clint"), string_to_hint("bbbby"), wordlist);
+    auto guesslist = DenseWordlist(ALL_GUESSES);
+    auto wordlist = DenseWordlist(ALL_WORDS);
+    // wordlist = get_compatible_words(get_guess_index("soare"), string_to_hint("ybbby"), wordlist);
+    // wordlist = get_compatible_words(get_guess_index("clint"), string_to_hint("bbbby"), wordlist);
     // auto wordlist_str = wordlist_to_strings(wordlist);
     // for (auto word : wordlist_str) {
     //     cout << word << endl;
     // } 
     // cout << "Done printing wordlist of length " << wordlist_str.size() << endl;
-    find_optimal_strategy(wordlist, guesslist);
-    cout << "---- Done printing optimal strategy ----" << endl;
+    Strategy optimal_strategy = find_optimal_strategy(wordlist, guesslist);
+    cout << "Optimal strategy is " << get_guess(optimal_strategy.get_guess()) << endl;
+    cout << "---- Done computing optimal strategy ----" << endl;
 
     // find_optimal_strategy();
     // cout << PackedWordlist().set() << endl;
