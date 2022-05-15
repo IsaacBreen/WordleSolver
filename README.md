@@ -1,4 +1,6 @@
-To my knowledge, this is the first correct Wordle solver to calculate an optimal guess, defined as the guess that minimizes the expected number of turns to win. No tricks - this algorithm is not a heuristic. Most other solution attempts define an 'optimal guess' as that which gives the highest expected information-gain to make the search tractable (although it does use maximum information-gain as a heuristic to make the search faster). While this is a useful heuristic, it is not equivalent to minimizing the expected number of turns to win. Given that the goal of Wordle is generally considered to find the solution in the fewest turns, the information-gain heuristic is not the optimal strategy.
+To my knowledge, this is the first correct Wordle solver to calculate an optimal guess, defined as the guess that minimizes the expected number of turns to win. No tricks - it's not a heuristic.
+
+Most other solution attempts define an 'optimal guess' as that which gives the highest expected information-gain to make the search tractable (although it does use maximum information-gain as a heuristic to make the search faster). While this is a useful heuristic, it is not equivalent to minimizing the expected number of turns to win. Given that the goal of Wordle is generally considered to be finding the solution in the fewest possible turns, the information-gain heuristic is not the optimal strategy.
 
 The core algorithm is simple. In Pythonic pseudocode:
 
