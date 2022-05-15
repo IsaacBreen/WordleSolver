@@ -31,6 +31,7 @@
 #include <user.hpp>
 #include <optimiser.hpp>
 #include <word_types.hpp>
+#include <entropy.hpp>
 
 using namespace std;
 
@@ -54,16 +55,22 @@ int main()
 
     auto guesslist = DenseWordlist(ALL_GUESSES);
     auto wordlist = DenseWordlist(ALL_WORDS);
-    // wordlist = get_compatible_words(get_guess_index("soare"), string_to_hint("ybbby"), wordlist);
+    wordlist = get_compatible_words(get_guess_index("soare"), string_to_hint("bybyb"), wordlist);
     // wordlist = get_compatible_words(get_guess_index("clint"), string_to_hint("bbbby"), wordlist);
-    // auto wordlist_str = wordlist_to_strings(wordlist);
-    // for (auto word : wordlist_str) {
-    //     cout << word << endl;
-    // } 
-    // cout << "Done printing wordlist of length " << wordlist_str.size() << endl;
-    Strategy optimal_strategy = find_optimal_strategy(wordlist, guesslist);
-    cout << "Optimal strategy is " << get_guess(optimal_strategy.get_guess()) << endl;
-    cout << "---- Done computing optimal strategy ----" << endl;
+    auto wordlist_str = wordlist_to_strings(wordlist);
+    for (auto word : wordlist_str) {
+        cout << word << endl;
+    }
+    cout << "Done printing wordlist of length " << wordlist_str.size() << endl;
+    cout << endl << endl << endl;
+    auto est = estimate_execution_time_find_optimal_strategy(DenseWordlist(ALL_WORDS), DenseWordlist(ALL_GUESSES));
+    cout << "Estimated execution time: " << est << " seconds" << endl;
+    auto [max_eig_guess, max_eig] = highest_expected_information_gain_guess(wordlist, wordlist);
+    // cout << "Highest expected information gain guess is " << guesses[max_eig_guess] << " with expected information gain " << max_eig << endl;
+    // Strategy optimal_strategy = find_optimal_strategy(wordlist, guesslist);
+    // cout << "Optimal strategy is " << get_guess(optimal_strategy.get_guess()) << endl;
+    // cout << "Information gain of optimal strategy is " << expected_information_gain(optimal_strategy.get_guess(), wordlist) << endl;
+    // cout << "---- Done computing optimal strategy ----" << endl;
 
     // find_optimal_strategy();
     // cout << PackedWordlist().set() << endl;

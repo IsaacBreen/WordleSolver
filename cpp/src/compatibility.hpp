@@ -116,11 +116,19 @@ bool word_is_compatible_with_guess_hint(Word& word, Word& guess, Hint& hint) {
 
 template<typename T>
 T get_compatible_words(Word guess, Hint hint, T& wordlist) {
+    if (hint >= NUM_HINT_CONFIGS) {
+        cout << "Invalid hint: " << hint << endl;
+        exit(1);
+    }
+    if (guess >= NUM_GUESSES) {
+        cout << "Invalid guess: " << guess << endl;
+        exit(1);
+    }
     return wordlist & compatibility_matrix[hint][guess];
 }
 
 
-size_t size(PackedWordlist wordlist) {
+size_t size(PackedWordlist& wordlist) {
     return wordlist.count();
 }
 

@@ -31,7 +31,7 @@ using namespace std;
 #pragma once
 
 // Take a ground truth word and a guess and return the guess result
-constexpr auto make_hint(auto word, auto guess) {
+constexpr Hint make_hint(auto word, auto guess) {
     // Initialise to "bbbb..." of same length as word
     Hint hint = 0;
     for (int i = 0; i < WORD_LENGTH; i++) {

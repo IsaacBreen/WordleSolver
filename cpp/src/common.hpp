@@ -52,14 +52,24 @@ public:
     DenseWordlist(const DenseWordlist& other) {
         data = other.data;
     }
-    DenseWordlist(bitset<N> data) {
-        this->data = data;
+    DenseWordlist(const bitset<N>& other_data) {
+        data = other_data;
+    }
+    // Implicit conversion to vector<Word>
+    operator vector<Word>() const {
+        vector<Word> result;
+        for (int i = 0; i < N; i++) {
+            if (data[i]) {
+                result.push_back(i);
+            }
+        }
+        return result;
     }
     // Bitwise operators
-    DenseWordlist operator&(DenseWordlist other) {
+    DenseWordlist operator&(const DenseWordlist& other) {
         return DenseWordlist(data & other.data);
     }
-    DenseWordlist operator|(DenseWordlist other) {
+    DenseWordlist operator|(const DenseWordlist& other) {
         return DenseWordlist(data | other.data);
     }
     // Equality
@@ -87,7 +97,7 @@ public:
         bitset<N> data;
         int index;
     public:
-        iterator(bitset<N> data, int index) {
+        iterator(bitset<N>& data, int index) {
             this->data = data;
             this->index = index;
         }
@@ -129,13 +139,13 @@ public:
     SparseWordlist(const SparseWordlist& other) {
         data = other.data;
     }
-    SparseWordlist(vector<Word> data) {
+    SparseWordlist(const vector<Word>& data) {
         for (Word word : data) {
             this->data.insert(word);
         }
     }
     template<unsigned long N>
-    SparseWordlist(DenseWordlist<N>& data) {
+    SparseWordlist(const DenseWordlist<N>& data) {
         for (int i = 0; i < N; i++) {
             if (data[i]) {
                 this->data.insert(i);
@@ -143,16 +153,24 @@ public:
         }
     }
     template<unsigned long N>
-    SparseWordlist(bitset<N>& data) {
+    SparseWordlist(const bitset<N>& data) {
         for (int i = 0; i < N; i++) {
             if (data[i]) {
                 this->data.insert(i);
             }
         }
+    }
+    // Implicit conversion to vector<Word>
+    operator vector<Word>() {
+        vector<Word> result;
+        for (Word word : data) {
+            result.push_back(word);
+        }
+        return result;
     }
     // Operators with bitset and DenseWordlist
     template<unsigned long N>
-    SparseWordlist operator&(bitset<N> other) {
+    SparseWordlist operator&(const bitset<N>& other) {
         vector<Word> result;
         for (Word word : data) {
             if (other[word]) {
@@ -162,7 +180,7 @@ public:
         return SparseWordlist(result);
     }
     template<unsigned long N>
-    SparseWordlist operator|(bitset<N> other) {
+    SparseWordlist operator|(const bitset<N>& other) {
         SparseWordlist result;
         for (Word word : data) {
             result.set(word, true);
@@ -175,15 +193,15 @@ public:
         return SparseWordlist(result);
     }
     template<unsigned long N>
-    SparseWordlist operator&(DenseWordlist<N> other) {
+    SparseWordlist operator&(const DenseWordlist<N>& other) {
         return *this & bitset<N>(other);
     }
     template<unsigned long N>
-    SparseWordlist operator|(DenseWordlist<N> other) {
+    SparseWordlist operator|(const DenseWordlist<N>& other) {
         return *this | bitset<N>(other);
     }
     // Equality
-    bool operator==(SparseWordlist& other) {
+    bool operator==(const SparseWordlist& other) {
         return data == other.data;
     }
     int size() {
