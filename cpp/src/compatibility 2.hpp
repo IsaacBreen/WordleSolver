@@ -22,7 +22,6 @@
 #include <functional>
 #include <iterator>
 #include <time.h>
-#include <stdexcept>
 #include <filesystem>
 #include <fstream>
 // Boost boost::archive::binary_oarchive for array and bitset
@@ -113,31 +112,15 @@ CONST_TYPE auto compatibility_matrix = precompute_compatibility_matrix_cached();
 
 bool word_is_compatible_with_guess_hint(Word& word, Word& guess, Hint& hint) {
     return compatibility_matrix[hint][guess][word];
-    // return word_is_compatible_with_guess_hint(words[word], guesses[guess], hint);
 }
 
 template<typename T>
 T get_compatible_words(Word guess, Hint hint, T& wordlist) {
-    if (hint >= NUM_HINT_CONFIGS or hint < 0) {
-        cout << "Invalid hint: " << hint << endl;
-        throw runtime_error("Invalid hint" + to_string(hint));
-    }
-    if (guess >= NUM_GUESSES or guess < 0) {
-        cout << "Invalid guess: " << guess << endl;
-        throw runtime_error("Invalid guess" + to_string(guess));
-    }
-    T compatible_words;
-    for (auto word : wordlist) {
-        if (word_is_compatible_with_guess_hint(word, guess, hint)) {
-            compatible_words.set(word, true);
-        }
-    }
-    // return compatible_words;
     return wordlist & compatibility_matrix[hint][guess];
 }
 
 
-size_t size(PackedWordlist& wordlist) {
+size_t size(PackedWordlist wordlist) {
     return wordlist.count();
 }
 

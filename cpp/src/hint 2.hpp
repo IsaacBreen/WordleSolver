@@ -22,7 +22,6 @@
 #include <functional>
 #include <iterator>
 #include <time.h>
-#include <stdexcept>
 
 #include <common.hpp>
 #include <data/data.hpp>
@@ -32,7 +31,7 @@ using namespace std;
 #pragma once
 
 // Take a ground truth word and a guess and return the guess result
-constexpr Hint make_hint(auto word, auto guess) {
+constexpr auto make_hint(auto word, auto guess) {
     // Initialise to "bbbb..." of same length as word
     Hint hint = 0;
     for (int i = 0; i < WORD_LENGTH; i++) {
@@ -109,12 +108,12 @@ CONST_TYPE array<array<Hint, NUM_GUESSES>, NUM_WORDS> precalculate_hints(auto wo
     array<array<Hint, NUM_GUESSES>, NUM_WORDS> hints;
     #pragma omp parallel for
     for (int i = 0; i < NUM_WORDS; i++) {
-        if (DEBUG and i%100==0) cout << "Precomputing hints: " << (float)i/NUM_WORDS*100 << "%" << flush << "033[F\33[2K\r";
+        if (DEBUG and i%100==0) cout << "Precomputing hints: " << (float)i/NUM_WORDS*100 << "%" << flush << "\r";
         for (int j = 0; j < NUM_GUESSES; j++) {
             hints[i][j] = make_hint(words[i], guesses[j]);
         }
     }
-    cout << "Precomputing hints: 100%" << endl;
+    cout << "Precomputing hints: 100%        " << endl;
     return hints;
 }
 
@@ -122,8 +121,5 @@ CONST_TYPE array<array<Hint, NUM_GUESSES>, NUM_WORDS> precalculate_hints(auto wo
 CONST_TYPE auto hints = precalculate_hints(words, guesses);
 
 Hint get_hint(Word word, Word guess) {
-    if (word < 0 or word >= NUM_WORDS or guess < 0 or guess >= NUM_GUESSES) {
-        throw invalid_argument("get_hint: word (" + to_string(word) + ") or guess (" + to_string(guess) + ") out of bounds");
-    }
     return hints[word][guess];
 }

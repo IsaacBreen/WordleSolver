@@ -22,7 +22,6 @@
 #include <functional>
 #include <iterator>
 #include <time.h>
-#include <stdexcept>
 
 #include <common.hpp>
 #include <data/data.hpp>

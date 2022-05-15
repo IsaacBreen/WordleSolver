@@ -22,7 +22,6 @@
 #include <functional>
 #include <iterator>
 #include <time.h>
-#include <stdexcept>
 
 using namespace std;
 
@@ -53,15 +52,8 @@ public:
     DenseWordlist(const DenseWordlist& other) {
         data = other.data;
     }
-    DenseWordlist(const bitset<N>& other_data) {
-        data = other_data;
-    }
-    DenseWordlist(const vector<Word>& other_data) {
-        for (int i = 0; i < N; i++) {
-            if (other_data[i]) {
-                data.set(i);
-            }
-        }
+    DenseWordlist(const bitset<N>& data) {
+        this->data = data;
     }
     // Implicit conversion to vector<Word>
     operator vector<Word>() const {
@@ -271,16 +263,14 @@ constexpr int NUM_HINT_CONFIGS = mypow(3,WORD_LENGTH);
 
 string get_word(Word word) {
     if (word < 0 or word >= NUM_WORDS) {
-        cout << "Invalid word: " << word << endl;
-        throw "Invalid word";
+        return "ERROR";
     }
     return words[word];
 }
 
 string get_guess(Guess guess) {
     if (guess < 0 or guess >= NUM_GUESSES) {
-        cout << "Invalid guess: " << guess << endl;
-        throw "Invalid guess";
+        return "ERROR";
     }
     return guesses[guess];
 }
@@ -291,8 +281,7 @@ Word get_word_index(string word) {
             return i;
         }
     }
-    cout << "Invalid word: " << word << endl;
-    throw "Word not found";
+    exit(1);
 }
 
 Guess get_guess_index(string guess) {
@@ -301,58 +290,8 @@ Guess get_guess_index(string guess) {
             return i;
         }
     }
-    cout << "Invalid guess: " << guess << endl;
-    throw "Guess not found";
+    exit(1);
 }
-
-
-class Strategy {
-private:
-    map<Hint, vector<Strategy>> substrategies;
-public:
-    Guess guess;
-    float expected_turns_to_win;
-    Strategy(Guess guess=-1, float expected_turns_to_win=BIG_NUMBER) {
-        this->guess = guess;
-        this->expected_turns_to_win = expected_turns_to_win;
-    }
-    void add_substrategy(Hint hint, Strategy strategy) {
-        substrategies[hint].push_back(strategy);
-    }
-    Strategy get_substrategy(Hint hint, int index=0) {
-        return substrategies[hint][index];
-    }
-    void remove_substrategies(Hint hint) {
-        substrategies.erase(hint);
-    }
-    Guess get_guess() {
-        return guess;
-    }
-    void set_guess(Guess guess) {
-        this->guess = guess;
-    }
-    float get_expected_turns_to_win() {
-        return expected_turns_to_win;
-    }
-    void set_expected_turns_to_win(float expected_turns_to_win) {
-        this->expected_turns_to_win = expected_turns_to_win;
-    }
-    int size() {
-        int result = 1;
-        for (auto& [hint, strategies] : substrategies) {
-            for (auto& strategy : strategies) {
-                result *= strategy.size();
-            }
-        }
-        return result;
-    }
-    void poison() {
-        guess = -1;
-    }
-    bool is_poisoned() {
-        return guess == -1;
-    }
-};
 
 
 #endif // CONSTANTS_HPP
