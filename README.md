@@ -6,7 +6,7 @@ The core algorithm is simple. In Pythonic pseudocode:
 
 ```python
 guesslist = ['aahed', 'aalii', 'aargh', 'aarti', 'abaca', ...]
-wordlist_initial  = ['aback', 'abase', 'abate', 'abbey', 'abbot' ...]
+wordlist_initial = ['aback', 'abase', 'abate', 'abbey', 'abbot' ...]
 
 def find_optimal_guess(wordlist):
     # Keep track of the best guess and its expected number of turns to win
