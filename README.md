@@ -29,7 +29,7 @@ def find_optimal_guess(wordlist):
     return best_guess, best_ETW
 ```
     
-This is only to give an idea of the algorithm - the function names above aren't consistent with the actual code. The actual implementation is more complex. It is a depth-first search that employs early-stopping rules, precomputes `make_hint(guess, word)` and 'are_compatible(word, guess, hint)' over all inputs, and uses integer arithmetic and bitsets as instead of strings wherever possible to speed up the search.
+Note that the function names above aren't consistent with the actual code. The actual implementation is more complex. It is a depth-first search that employs early-stopping rules, precomputes `make_hint(guess, word)` and 'are_compatible(word, guess, hint)' over all inputs, and uses integer arithmetic and bitsets as instead of strings wherever possible to speed up the search.
 
 Despite this, the algorithm is still very slow. I have estimated that it would take about 54 years to find the optimal first word, or 6 months on 100-cores. Getting up to a reasonable speed on a typical single CPU core is the next step.
 
