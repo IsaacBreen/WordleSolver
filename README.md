@@ -33,6 +33,29 @@ Despite this, the algorithm is still very slow. I have estimated that it would t
 
 It is perfectly useable for computing optimal second guesses, however - although it still needs a user-friendly interface.
 
+## Setup
+
+Prerequisites:
+- Boost ((Windows)[https://www.boost.org/doc/libs/1_79_0/more/getting_started/unix-variants.html] or (Linux & MacOS)[https://www.boost.org/doc/libs/1_79_0/more/getting_started/unix-variants.html]).
+- OpenMP
+- Python 3.6+
+
+Make sure your C++ compiler can see Boost and OpenMP. I prefer to add the relevant directories to CPP_INCLUDE_PATH and CPP_LIBRARY_PATH.
+
+To build using GCC, run:
+
+```bash
+git clone https://github.com/IsaacBreen/WordleSolver
+cd WordleSolver
+# python preprocess_data.py # optional - repo contains preprocessed data already
+cd cpp/src
+g++ -std=c++20 -O3 -lomp -fopenmp -lboost_serialization -lboost_iostreams -fpermissive main.cpp -o solver
+# Run it
+./solver
+```
+
+If using Clang\'s `g++`-like interface, replace -fopenmp with -Xpreprocessor -fopenmp.
+
 ## Dependencies
 
 - (LaurentLessard/wordlesolver)[https://github.com/LaurentLessard/wordlesolver] - Provides word- and guess-lists
