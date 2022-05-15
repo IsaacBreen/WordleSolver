@@ -45,6 +45,7 @@ using namespace std;
 #define SPACED_ENDL "    " << endl
 #define MAX_TURNS 6
 #define PRECOMPUTE_LEVEL 5
+#define USELESS_GUESS_ELIMINATION_LEVEL 3
 // #define MIN_DIGIT_PADDING 2
 
 class Strategy {
@@ -183,26 +184,26 @@ Strategy find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslis
         if (hyp_wordlist_remaining.size() > 2) {
             auto useful_guesslist = guesslist;
             useful_guesslist.set(guess, false);
-            // if (turn == PRECOMPUTE_LEVEL) {
-            //     // Filter out useless guesses (ones that don't eliminate any words)
-            //     for (auto hyp_guess2 : guesslist) {
-            //         if (hyp_guess2 == guess) continue;
-            //         bool is_useful = false;
-            //         for (auto hyp_word2 : hyp_wordlist_remaining) {
-            //             auto hyp_hint2 = get_hint(hyp_word2, hyp_guess2);
-            //             for (auto hyp_word3 : hyp_wordlist_remaining) {
-            //                 if (not word_is_compatible_with_guess_hint(hyp_word3, hyp_guess2, hyp_hint2)) {
-            //                     is_useful = true;
-            //                 }
-            //                 if (is_useful) break;
-            //             }
-            //             if (is_useful) break;
-            //         }
-            //         if (not is_useful) {
-            //             useful_guesslist.set(hyp_guess2, false);
-            //         }
-            //     }
-            // }
+            if (turn >= USELESS_GUESS_ELIMINATION_LEVEL) {
+                // Filter out useless guesses (ones that don't eliminate any words)
+                for (auto hyp_guess2 : guesslist) {
+                    if (hyp_guess2 == guess) continue;
+                    bool is_useful = false;
+                    for (auto hyp_word2 : hyp_wordlist_remaining) {
+                        auto hyp_hint2 = get_hint(hyp_word2, hyp_guess2);
+                        for (auto hyp_word3 : hyp_wordlist_remaining) {
+                            if (not word_is_compatible_with_guess_hint(hyp_word3, hyp_guess2, hyp_hint2)) {
+                                is_useful = true;
+                            }
+                            if (is_useful) break;
+                        }
+                        if (is_useful) break;
+                    }
+                    if (not is_useful) {
+                        useful_guesslist.set(hyp_guess2, false);
+                    }
+                }
+            }
             auto hyp_wordlist_remaining_variant = maybe_sparsify(hyp_wordlist_remaining);
             auto useful_guesslist_variant = maybe_sparsify(useful_guesslist);
             float max_Exp_turns_remaining_stop_hyp = (best_strategy.expected_turns_to_win - strategy.expected_turns_to_win) * wordlist.size() - 1;
