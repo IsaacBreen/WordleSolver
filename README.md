@@ -1,4 +1,7 @@
-To my knowledge, this is the first correct Wordle solver to calculate an optimal guess, defined as the guess that minimizes the expected number of turns to win. No tricks - this algorithm is not a heuristic. Nor does it rely on any questionable definition of an 'optimal guess', such as that which gives the highest expected information-gain to make the search tractable (although it does use maximum information-gain as a heuristic to make the search faster). The core algorithm is simple (Pythonic pseudocode):
+To my knowledge, this is the first correct Wordle solver to calculate an optimal guess, defined as the guess that minimizes the expected number of turns to win. No tricks - this algorithm is not a heuristic. Most other solution attempts define an 'optimal guess' as that which gives the highest expected information-gain to make the search tractable (although it does use maximum information-gain as a heuristic to make the search faster). While this is a useful heuristic, it is not equivalent to minimizing the expected number of turns to win. Given that the goal of Wordle is generally considered to find the solution in the fewest turns, the information-gain heuristic is not the optimal strategy.
+
+The core algorithm is simple. In Pythonic pseudocode:
+
 ```python
 guesslist = ['aahed', 'aalii', 'aargh', 'aarti', 'abaca', ...]
 wordlist_initial  = ['aback', 'abase', 'abate', 'abbey', 'abbot' ...]
@@ -24,7 +27,11 @@ def find_optimal_guess(wordlist):
     return best_guess, best_ETW
 ```
     
+This is only to give an idea of the algorithm - the function names above aren't consistent with the actual code. The actual implementation is more complex. It is a depth-first search that employs early-stopping rules, precomputes `make_hint(guess, word)` and 'are_compatible(word, guess, hint)' over all inputs, and uses integer arithmetic and bitsets as instead of strings wherever possible to speed up the search.
 
+Despite this, the algorithm is still very slow. I have estimated that it would take about 54 years to find the optimal first word, or 6 months on 100-cores. Getting up to a reasonable speed on a typical single CPU core is the next step.
+
+It is perfectly useable for computing optimal second guesses, however - although it still needs a user-friendly interface.
 
 ## Dependencies
 
