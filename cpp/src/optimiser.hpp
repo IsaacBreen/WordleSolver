@@ -29,6 +29,7 @@
 #include <data/data.hpp>
 #include <hint.hpp>
 #include <compatibility.hpp>
+#include <entropy.hpp>
 
 // Only include OpenMP if it is available
 #ifdef _OPENMP
@@ -237,32 +238,7 @@ Strategy _find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns
     Guess greedy_guess;
     float greedy_guess_wordlist_size = BIG_NUMBER;
     int i_guess = -1;
-    for (auto guess : guesslist) {
-        i_guess++;
-        if (verbose) {
-            // Whitespace-pad the guess number
-            string guess_str = to_string(i_guess+1);
-            string num_guesses_str = to_string(guesslist.size());
-            auto num_digits = max(guess_str.size(), num_guesses_str.size());
-            while (guess_str.length() < num_digits) {
-                guess_str = " " + guess_str;
-            }
-            while (num_guesses_str.length() < num_digits) {
-                num_guesses_str = " " + num_guesses_str;
-            }
-            cout << indentations(turn) << "Finding best starting guess. Trying " << get_guess(guess) << ". Best so far: " << get_guess(greedy_guess) << " (" << guess_str << "/" << num_guesses_str << ")" << endl;
-            cout << "\033[F\33[2K\r";
-        }
-        float expected_wordlist_size = 0;
-        for (auto word : wordlist) {
-            Hint hint = get_hint(word, guess);
-            expected_wordlist_size += num_compatible_words(guess, hint, wordlist);
-        }
-        if (expected_wordlist_size < greedy_guess_wordlist_size) {
-            greedy_guess = guess;
-            greedy_guess_wordlist_size = expected_wordlist_size;
-        }
-    }
+    auto [max_ig_guess, max_ig] = highest_expected_information_gain_guess(wordlist, guesslist);
     if (verbose) cout << indentations(turn) << "Best starting guess: " << get_guess(greedy_guess) << " (" << greedy_guess_wordlist_size/wordlist.size() << ")" << endl;
     Strategy dummy_strategy;
     dummy_strategy.expected_turns_to_win = max_Exp_turns_remaining_stop;
