@@ -36,21 +36,26 @@ It is perfectly useable for computing optimal second guesses, however - although
 ## Setup
 
 Prerequisites:
-- Boost ((Windows)[https://www.boost.org/doc/libs/1_79_0/more/getting_started/unix-variants.html] or (Linux & MacOS)[https://www.boost.org/doc/libs/1_79_0/more/getting_started/unix-variants.html]).
+- Boost ([Windows](https://www.boost.org/doc/libs/1_79_0/more/getting_started/unix-variants.html) or [Linux & MacOS](https://www.boost.org/doc/libs/1_79_0/more/getting_started/unix-variants.html)).
 - OpenMP
 - Python 3.6+
 
-Make sure your C++ compiler can see Boost and OpenMP. I prefer to add the relevant directories to CPP_INCLUDE_PATH and CPP_LIBRARY_PATH.
+Make sure your C++ compiler can see Boost and OpenMP. I prefer to add their directories to CPP_INCLUDE_PATH and CPP_LIBRARY_PATH.
 
-To build using GCC, run:
-
+Download the repository:
 ```bash
 git clone https://github.com/IsaacBreen/WordleSolver
 cd WordleSolver
-# python preprocess_data.py # optional - repo contains preprocessed data already
+```
+Optionally, preprocess the word- and guess-lists. This repo ships with the preprocessed data, so you can skip this step if you just want to run the solver.
+
+```bash
+python preprocess_data.py
+```
+Finally, to build and run using GCC, execute:
+```bash
 cd cpp/src
 g++ -std=c++20 -O3 -lomp -fopenmp -lboost_serialization -lboost_iostreams -fpermissive main.cpp -o solver
-# Run it
 ./solver
 ```
 
