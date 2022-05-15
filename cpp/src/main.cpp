@@ -38,12 +38,12 @@ using namespace std;
 
 int main()
 {
-    // Demonstration of \033[F
+    // Demonstration of \033[F\33[2K\r
     // cout << "This is line 1" << endl;
     // cout << "This is line 2" << endl;
-    // cout << "\033[FThis is line 3" << endl;
-    // cout << "\033[FThis is loin" << endl;
-    // cout << "\033[F\033[FThis is line 4" << endl;
+    // cout << "\033[F\33[2K\rThis is line 3" << endl;
+    // cout << "\033[F\33[2K\rThis is loin" << endl;
+    // cout << "\033[F\33[2K\r\033[F\33[2K\rThis is line 4" << endl;
     // cout << endl;
 
     // print_compatibility_matrix(0,100);
@@ -62,7 +62,6 @@ int main()
         cout << word << endl;
     }
     cout << "Done printing wordlist of length " << wordlist_str.size() << endl;
-    cout << endl << endl << endl;
     auto est = estimate_execution_time_find_optimal_strategy(DenseWordlist(ALL_WORDS), DenseWordlist(ALL_GUESSES));
     cout << "Estimated execution time: " << est << " seconds" << endl;
     auto [max_eig_guess, max_eig] = highest_expected_information_gain_guess(wordlist, wordlist);

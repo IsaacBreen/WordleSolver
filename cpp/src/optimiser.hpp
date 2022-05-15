@@ -42,7 +42,6 @@ using namespace std;
 
 #define PRINT_LEVELS 2
 #define SPARSITY_THRESHOLD 0.1
-#define SPACED_ENDL "    " << endl
 #define MAX_TURNS 6
 #define PRECOMPUTE_LEVEL 5
 #define USELESS_GUESS_ELIMINATION_LEVEL 3
@@ -125,7 +124,7 @@ string sparsity_string(T& wordlist) {
 }
 
 template<typename WL, typename GL>
-Strategy find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslist, Strategy& best_strategy, int turn, bool verbose) {
+Strategy _find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslist, Strategy& best_strategy, int turn, bool verbose) {
     Strategy strategy(guess);
     int i = 0;
     for (auto hyp_word : wordlist) {
@@ -139,7 +138,7 @@ Strategy find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslis
         switch (hyp_wordlist_remaining.size()) {
             case 0:
                 // something is wrong.
-                cout << "Something is wrong. No compatible words remaining." << SPACED_ENDL;
+                cout << indentations(turn) << "Something is wrong. No compatible words remaining." << endl;
                 exit(1);
             case 1:
                 // If there is only one word remaining, there are zero turns left
@@ -152,7 +151,7 @@ Strategy find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslis
             default:
                 // If there are more than two words remaining, we need to guess
                 if (hyp_wordlist_remaining.size() < 0) {
-                    cout << "Something is wrong. Number of compatible words remaining is negative." << SPACED_ENDL;
+                    cout << indentations(turn) << "Something is wrong. Number of compatible words remaining is negative." << endl;
                     exit(1);
                 }
                 // In the best case, where there are three words remaining and they are mutually excluding upon misguess, it will take 2/3 turns to win on average.
@@ -179,7 +178,7 @@ Strategy find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslis
             while (word_str.length() < num_words_str.length()) {
                 word_str = " " + word_str;
             }
-            cout << "Trying word " << get_word(hyp_word) << " (" << word_str << "/" << num_words_str << ") " << "expected turns to win so far: " << strategy.expected_turns_to_win << SPACED_ENDL;
+            cout << indentations(turn) << "Trying word " << get_word(hyp_word) << " (" << word_str << "/" << num_words_str << ") " << "expected turns to win so far: " << strategy.expected_turns_to_win << endl;
         }
         if (hyp_wordlist_remaining.size() > 2) {
             auto useful_guesslist = guesslist;
@@ -211,35 +210,32 @@ Strategy find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslis
             bool next_step_verbose = verbose and turn < PRINT_LEVELS and hyp_wordlist_remaining.size()>50;
             Strategy hyp_strategy = visit(
                 [&](auto& wordlist_variant, auto& guesslist_variant) {
-                    return find_optimal_strategy(wordlist_variant, guesslist_variant, max_Exp_turns_remaining_stop_hyp, turn+1, next_step_verbose);
+                    return _find_optimal_strategy(wordlist_variant, guesslist_variant, max_Exp_turns_remaining_stop_hyp, turn+1, next_step_verbose);
                 },
                 hyp_wordlist_remaining_variant, useful_guesslist_variant);
-            // hyp_strategy = find_optimal_strategy(hyp_wordlist_remaining, useful_guesslist, max_Exp_turns_remaining_stop_hyp, turn+1);
+            // hyp_strategy = _find_optimal_strategy(hyp_wordlist_remaining, useful_guesslist, max_Exp_turns_remaining_stop_hyp, turn+1);
             if (is_poisoned(hyp_strategy)) {
                 strategy.poison();
             } else {
                 strategy.expected_turns_to_win += (hyp_strategy.expected_turns_to_win - 2.0/3.0) / wordlist.size();
             }
         }
-        if (verbose) cout << "\033[F";
+        if (verbose) cout << "\033[F\33[2K\r";
     }
-    // if (verbose) cout << "\033[F\033[F";
     return strategy;
 }
 
 template<typename WL, typename GL>
-Strategy find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns_remaining_stop=1.6, int turn=0, bool verbose=true) {
+Strategy _find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns_remaining_stop, int turn=0, bool verbose=true) {
     if (verbose) {
+        cout << indentations(turn) << "Turn " << turn << ": ";
+        cout << indentations(turn) << "wordlist (" << sparsity_string(wordlist) << ") size: " << wordlist.size() << "; ";
+        cout << indentations(turn) << "guesslist (" << sparsity_string(guesslist) << ") size: " << guesslist.size();
         cout << endl;
-        cout << "Turn " << turn << ": ";
-        cout << "wordlist (" << sparsity_string(wordlist) << ") size: " << wordlist.size() << "; ";
-        cout << "guesslist (" << sparsity_string(guesslist) << ") size: " << guesslist.size();
-        cout << SPACED_ENDL;
     }
     // Initialise best_strategy with the guess that greedily narrows the wordlist down the most
     Guess greedy_guess;
     float greedy_guess_wordlist_size = BIG_NUMBER;
-    // if (verbose) cout << "Finding best starting guess" << SPACED_ENDL;
     int i_guess = -1;
     for (auto guess : guesslist) {
         i_guess++;
@@ -254,7 +250,8 @@ Strategy find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns_
             while (num_guesses_str.length() < num_digits) {
                 num_guesses_str = " " + num_guesses_str;
             }
-            cout << "Finding best starting guess. Trying " << get_guess(guess) << ". Best so far: " << get_guess(greedy_guess) << " (" << guess_str << "/" << num_guesses_str << ")" << SPACED_ENDL;
+            cout << indentations(turn) << "Finding best starting guess. Trying " << get_guess(guess) << ". Best so far: " << get_guess(greedy_guess) << " (" << guess_str << "/" << num_guesses_str << ")" << endl;
+            cout << "\033[F\33[2K\r";
         }
         float expected_wordlist_size = 0;
         for (auto word : wordlist) {
@@ -265,17 +262,14 @@ Strategy find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns_
             greedy_guess = guess;
             greedy_guess_wordlist_size = expected_wordlist_size;
         }
-        if (verbose) cout << "\033[F";
     }
-    if (verbose) cout << endl;
-    if (verbose) cout << "Best starting guess: " << get_guess(greedy_guess) << " (" << greedy_guess_wordlist_size/wordlist.size() << ")" << SPACED_ENDL;
-    // if (verbose) cout << "\033[F\033[F\033[F";
+    if (verbose) cout << indentations(turn) << "Best starting guess: " << get_guess(greedy_guess) << " (" << greedy_guess_wordlist_size/wordlist.size() << ")" << endl;
     Strategy dummy_strategy;
     dummy_strategy.expected_turns_to_win = max_Exp_turns_remaining_stop;
     dummy_strategy.poison();
-    if (verbose) cout << "-------- Priming step " << turn << " --------" << SPACED_ENDL;
-    Strategy best_strategy = find_optimal_strategy_for_guess(greedy_guess, wordlist, guesslist, dummy_strategy, turn, verbose);
-    if (verbose) cout << "\033[F";
+    if (verbose) cout << indentations(turn) << "-------- Priming step " << turn << " --------" << endl;
+    Strategy best_strategy = _find_optimal_strategy_for_guess(greedy_guess, wordlist, guesslist, dummy_strategy, turn, verbose);
+    if (verbose) cout << indentations(turn) << "Primed with " << get_guess(best_strategy.get_guess()) << " (" << best_strategy.expected_turns_to_win << ")" << endl;
     if (is_poisoned(best_strategy)) {
         best_strategy.expected_turns_to_win = max_Exp_turns_remaining_stop;
     } else {
@@ -300,40 +294,38 @@ Strategy find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns_
             }
             // #pragma omp critical
             {
-                cout << "Trying guess " << get_guess(guess) << " (" << guess_str << "/" << num_guesses_str << ")" << SPACED_ENDL;
-                cout << "Best strategy so far: " << get_guess(best_strategy.get_guess()) << " with " << best_strategy.expected_turns_to_win << " turns remaining." << SPACED_ENDL;
+                cout << indentations(turn) << "Trying guess " << get_guess(guess) << " (" << guess_str << "/" << num_guesses_str << ")" << endl;
+                cout << indentations(turn) << "Best strategy so far: " << get_guess(best_strategy.get_guess()) << " with " << best_strategy.expected_turns_to_win << " turns remaining." << endl;
             }
         }
-        Strategy strategy = find_optimal_strategy_for_guess(guess, wordlist, guesslist, best_strategy, turn, verbose);
+        Strategy strategy = _find_optimal_strategy_for_guess(guess, wordlist, guesslist, best_strategy, turn, verbose);
         // #pragma omp critical
         {
             if (not is_poisoned(strategy) and strategy.expected_turns_to_win < best_strategy.expected_turns_to_win) {
                 best_strategy = strategy;
             }
-            if (verbose) cout << "\033[F\033[F";
+            if (verbose) cout << "\033[F\33[2K\r\033[F\33[2K\r";
         }
     }
-    if (verbose) cout << "\033[F\033[F\033[F\033[F";
-    if (turn == 0) {
-        for (int i = 0; i < PRINT_LEVELS; i++) {
-            for (int j = 0; j < 6; j++) {
-                cout << endl;
-            }
-        }
-    }
+    if (verbose) cout << "\033[F\33[2K\r\033[F\33[2K\r\033[F\33[2K\r\033[F\33[2K\r";
     return best_strategy;
 }
 
 template<typename WL, typename GL>
+Strategy find_optimal_strategy(WL& wordlist, GL& guesslist, bool verbose=true) {
+    return _find_optimal_strategy(wordlist, guesslist, 2.6, 0, verbose);
+}
+
+template<typename WL, typename GL>
 float estimate_execution_time_find_optimal_strategy(WL wordlist, GL guesslist) {
-    // Estimate the execution time of find_optimal_strategy() by running it on random words/guesses
+    // Estimate the execution time of _find_optimal_strategy() by running it on random words/guesses
     const auto num_samples = 10;
     auto t0 = chrono::high_resolution_clock::now();
     for (int i = 0; i < num_samples; i++) {
         Word word = rand() % wordlist.size();
         Guess guess = rand() % guesslist.size();
         auto wordlist_remaining = get_compatible_words(guess, get_hint(word, guess), wordlist);
-        cout << "Estimating execution time. Trying " << get_guess(guess) << " on " << get_word(word) << " with " << wordlist_remaining.size() << " words remaining." << SPACED_ENDL;
+        cout << "Estimating execution time. Trying " << get_guess(guess) << " on " << get_word(word) << " with " << wordlist_remaining.size() << " words remaining." << endl;
         find_optimal_strategy(wordlist_remaining, guesslist);
     }
     auto t1 = chrono::high_resolution_clock::now();
