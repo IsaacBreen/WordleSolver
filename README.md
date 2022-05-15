@@ -61,6 +61,6 @@ g++ -std=c++20 -O3 -lomp -fopenmp -lboost_serialization -lboost_iostreams -fperm
 
 If using Clang\'s `g++`-like interface, replace -fopenmp with -Xpreprocessor -fopenmp.
 
-## Dependencies
+## Acknowledgements
 
 - (LaurentLessard/wordlesolver)[https://github.com/LaurentLessard/wordlesolver] - Provides word- and guess-lists
