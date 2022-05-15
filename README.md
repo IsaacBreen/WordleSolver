@@ -63,4 +63,4 @@ If using Clang\'s `g++`-like interface, replace -fopenmp with -Xpreprocessor -fo
 
 ## Acknowledgements
 
-- (LaurentLessard/wordlesolver)[https://github.com/LaurentLessard/wordlesolver] - Provides word- and guess-lists
+- [LaurentLessard/wordlesolver](https://github.com/LaurentLessard/wordlesolver) - Provides word- and guess-lists
