@@ -5,17 +5,17 @@
       "type": "lldb",
       "request": "launch",
       "name": "Debug",
-      "program": "${workspaceRoot}/${fileBasenameNoExtension}",
+      "program": "${fileDirname}/${fileBasenameNoExtension}",
       // Run with O2 and C++20
       "sourceLanguages": [
         "cpp"
       ],
       "args": [
-        // "--mode", "calculate-best-opening",
-        "--verbose",
-        // "-n", "10",
+        "-O2",
+        "-std=c++20",
+        "-fpermissive"
       ],
-      "cwd": "${workspaceRoot}",
+      "cwd": "${workspaceRoot}/cpp/src",
       "terminal": "integrated",
       "preLaunchTask": "C/C++: g++ build active file",
     },

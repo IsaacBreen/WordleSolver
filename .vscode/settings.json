@@ -117,7 +117,8 @@
     "format": "cpp",
     "strstream": "cpp",
     "typeindex": "cpp",
-    "*.ipp": "cpp"
+    "*.ipp": "cpp",
+    "version": "cpp"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "/usr/bin/clang++",
