@@ -44,11 +44,15 @@ using namespace std;
 
 #define PRINT_LEVELS 4
 #define SPARSITY_THRESHOLD 0.1
-#define SMALL_WORDLIST 20
+#define SMALL_WORDLIST 100
+#define MEDIUM_WORDLIST 100
+#define LARGE_WORDLIST 1000
 #define SMALL_GUESSLIST 100
+#define WORDLIST_SIZE_PRINT_THRESHOLD 20
 #define MAX_TURNS 6
 #define PRECOMPUTE_LEVEL 5
 #define USELESS_GUESS_ELIMINATION_LEVEL 3
+#define SAMPLE_HEURISTIC false
 // #define MIN_DIGIT_PADDING 2
 
 bool is_poisoned(Strategy& strategy) {
@@ -88,8 +92,26 @@ string sparsity_string(T& wordlist) {
     }
 }
 
+class OptimizerConfig {
+public:
+    int wordlist_size;
+    int guesslist_size;
+    int max_turns;
+    int precompute_level;
+    bool sample_heuristic;
+    bool verbose;
+
+    OptimizerConfig(int wordlist_size=30, int guesslist_size=100, int max_turns=6, int precompute_level=5, bool sample_heuristic=true, bool verbose=true) :
+        wordlist_size(wordlist_size),
+        guesslist_size(guesslist_size),
+        max_turns(max_turns),
+        precompute_level(precompute_level),
+        sample_heuristic(sample_heuristic),
+        verbose(false) {}
+};
+
 template<typename WL, typename GL>
-Strategy _find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslist, Strategy& best_strategy, int turn, bool verbose) {
+Strategy _find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guesslist, Strategy& best_strategy, int turn, bool verbose, int optimisation_level=10) {
     Strategy strategy(guess, 0);
     int i = 0;
     for (auto hyp_word : wordlist) {
@@ -170,11 +192,11 @@ Strategy _find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guessli
             auto useful_guesslist_variant = maybe_sparsify(useful_guesslist);
             float max_Exp_turns_remaining_stop_hyp = (best_strategy.expected_turns_to_win - strategy.expected_turns_to_win) * wordlist.size() - 1;
             max_Exp_turns_remaining_stop_hyp = min(max_Exp_turns_remaining_stop_hyp, float(MAX_TURNS-turn-1));
-            bool next_step_verbose = verbose and turn < PRINT_LEVELS and hyp_wordlist_remaining.size()>SMALL_WORDLIST;
+            bool next_step_verbose = verbose and turn < PRINT_LEVELS and hyp_wordlist_remaining.size()>WORDLIST_SIZE_PRINT_THRESHOLD;
             if (verbose) cout << indentations(turn) << "Recursing with " << hyp_wordlist_remaining.size() << " words remaining." << endl;
             Strategy hyp_strategy = visit(
                 [&](auto& wordlist_variant, auto& guesslist_variant) {
-                    return _find_optimal_strategy(wordlist_variant, guesslist_variant, max_Exp_turns_remaining_stop_hyp, turn+1, next_step_verbose);
+                    return _find_optimal_strategy(wordlist_variant, guesslist_variant, max_Exp_turns_remaining_stop_hyp, turn+1, next_step_verbose, optimisation_level);
                 },
                 hyp_wordlist_remaining_variant, useful_guesslist_variant);
             if (is_poisoned(hyp_strategy)) {
@@ -190,7 +212,7 @@ Strategy _find_optimal_strategy_for_guess(Guess guess, WL& wordlist, GL& guessli
 }
 
 template<typename WL, typename GL>
-Strategy _find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns_remaining_stop, int turn=0, bool verbose=true) {
+Strategy _find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns_remaining_stop, int turn=0, bool verbose=true, int optimisation_level=10) {
     if (verbose) {
         cout << indentations(turn) << "Turn " << turn << ": ";
         cout << indentations(turn) << "wordlist (" << sparsity_string(wordlist) << ") size: " << wordlist.size() << "; ";
@@ -211,47 +233,49 @@ Strategy _find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns
     }
     i_guess = -1;
 
-    const int WORDLIST_SAMPLE_SIZE = 100;
-    const int GUESSLIST_SAMPLE_SIZE = SMALL_GUESSLIST;
-    if (wordlist.size() > WORDLIST_SAMPLE_SIZE) {
-        auto wordlist_sample = sample(wordlist, WORDLIST_SAMPLE_SIZE);
-        if (verbose) cout << indentations(turn) << "Searching for approximate best strategy with sample of " << wordlist_sample.size() << " words." << endl;
-        Strategy approximate_best_strategy = _find_optimal_strategy(wordlist_sample, guesslist, best_strategy.get_expected_turns_to_win(), turn, verbose);
-        if (not is_poisoned(approximate_best_strategy)) {
-            // Get the actual EMTW of the approximate best strategy
-            GL guesslist_sample;
-            if (guesslist.size() > GUESSLIST_SAMPLE_SIZE) {
-                // Choose the highest information-gain words
-                vector<tuple<float, Guess>> guess_information_gains;
-                for (auto guess : guesslist) {
-                    if (verbose) cout << indentations(turn) << "Evaluating guess information gain for " << get_guess(guess) << " (" << guess << " / " << guesslist.size() << ")" << endl;
-                    float eig = evaluate_expectation([&](Word word) {
-                        WL wordlist_remaining = get_compatible_words(guess, get_hint(word, guess), wordlist);
-                        return expected_information_gain(guess, wordlist_remaining);
-                    }, wordlist_sample);
-                    guess_information_gains.push_back(make_tuple(eig, guess));
-                    if (verbose) cout << "\033[F\33[2K\r";
+    if (SAMPLE_HEURISTIC and optimisation_level>=10) {
+        const int WORDLIST_SAMPLE_SIZE = SMALL_WORDLIST;
+        const int GUESSLIST_SAMPLE_SIZE = SMALL_GUESSLIST;
+        if (wordlist.size() > WORDLIST_SAMPLE_SIZE) {
+            if (verbose) cout << indentations(turn) << "Searching for approximate best strategy for sample of " << WORDLIST_SAMPLE_SIZE << " words." << endl;
+            auto wordlist_sample = random_subset(wordlist, WORDLIST_SAMPLE_SIZE);
+            Strategy approximate_best_strategy = _find_optimal_strategy(wordlist_sample, guesslist, best_strategy.get_expected_turns_to_win(), turn, verbose, 9);
+            if (not is_poisoned(approximate_best_strategy)) {
+                // Get the actual EMTW of the approximate best strategy
+                GL guesslist_sample;
+                if (guesslist.size() > GUESSLIST_SAMPLE_SIZE) {
+                    // Choose the highest information-gain words
+                    vector<tuple<float, Guess>> guess_information_gains;
+                    for (auto guess : guesslist) {
+                        if (verbose) cout << indentations(turn) << "Evaluating guess information gain for " << get_guess(guess) << " (" << guess << " / " << guesslist.size() << ")" << endl;
+                        float eig = evaluate_expectation([&](Word word) {
+                            WL wordlist_remaining = get_compatible_words(guess, get_hint(word, guess), wordlist);
+                            return expected_information_gain(guess, wordlist_remaining);
+                        }, wordlist_sample);
+                        guess_information_gains.push_back(make_tuple(eig, guess));
+                        if (verbose) cout << "\033[F\33[2K\r";
+                    }
+                    sort(guess_information_gains.begin(), guess_information_gains.end(), [](auto& a, auto& b) {
+                        return get<0>(a) > get<0>(b);
+                    });
+                    vector<Guess> top_guesses;
+                    for (int i=0; i<GUESSLIST_SAMPLE_SIZE; i++) {
+                        top_guesses.push_back(get<1>(guess_information_gains[i]));
+                    }
+                    guesslist_sample = GL(top_guesses);
+                } else {
+                    guesslist_sample = guesslist;
                 }
-                sort(guess_information_gains.begin(), guess_information_gains.end(), [](auto& a, auto& b) {
-                    return get<0>(a) > get<0>(b);
-                });
-                vector<Guess> top_guesses;
-                for (int i=0; i<GUESSLIST_SAMPLE_SIZE; i++) {
-                    top_guesses.push_back(get<1>(guess_information_gains[i]));
+                if (verbose) cout << indentations(turn) << "Approximate best strategy: " << get_guess(approximate_best_strategy.get_guess()) << " (" << approximate_best_strategy.get_expected_turns_to_win() << ")";
+                if (verbose) cout << " calculating its actual EMTW..." << endl;
+                Strategy approximate_best_strategy_actual = _find_optimal_strategy_for_guess(approximate_best_strategy.get_guess(), wordlist, guesslist_sample, best_strategy, turn, verbose, 9);
+                if (approximate_best_strategy_actual.get_expected_turns_to_win() < best_strategy.get_expected_turns_to_win()) {
+                    best_strategy = approximate_best_strategy_actual;
                 }
-                guesslist_sample = GL(top_guesses);
-            } else {
-                guesslist_sample = guesslist;
-            }
-            if (verbose) cout << indentations(turn) << "Approximate best strategy: " << get_guess(approximate_best_strategy.get_guess()) << " (" << approximate_best_strategy.get_expected_turns_to_win() << ")";
-            if (verbose) cout << " calculating its actual EMTW..." << endl;
-            Strategy approximate_best_strategy_actual = _find_optimal_strategy_for_guess(approximate_best_strategy.get_guess(), wordlist, guesslist_sample, best_strategy, turn, verbose);
-            if (approximate_best_strategy_actual.get_expected_turns_to_win() < best_strategy.get_expected_turns_to_win()) {
-                best_strategy = approximate_best_strategy_actual;
+                if (verbose) cout << "\033[F\33[2K\r";
             }
             if (verbose) cout << "\033[F\33[2K\r";
         }
-        if (verbose) cout << "\033[F\33[2K\r";
     }
 
     // Parallelise if not verbose. Need to use canonical to iterate over guesses.
@@ -273,7 +297,7 @@ Strategy _find_optimal_strategy(WL& wordlist, GL& guesslist, float max_Exp_turns
             cout << indentations(turn) << "Trying guess " << get_guess(guess) << " (" << guess_str << "/" << num_guesses_str << ")" << endl;
             cout << indentations(turn) << "Best strategy so far: " << get_guess(best_strategy.get_guess()) << " with " << best_strategy.expected_turns_to_win << " turns remaining." << endl;
         }
-        Strategy strategy = _find_optimal_strategy_for_guess(guess, wordlist, guesslist, best_strategy, turn, verbose);
+        Strategy strategy = _find_optimal_strategy_for_guess(guess, wordlist, guesslist, best_strategy, turn, verbose, optimisation_level);
         if (not is_poisoned(strategy) and strategy.expected_turns_to_win < best_strategy.expected_turns_to_win) {
             best_strategy = strategy;
         }
@@ -294,12 +318,15 @@ float estimate_execution_time_find_optimal_strategy(WL wordlist, GL guesslist) {
     const auto num_samples = 2;
     auto t0 = chrono::high_resolution_clock::now();
     for (int i = 0; i < num_samples; i++) {
+        auto t00 = chrono::high_resolution_clock::now();
         Word word = rand() % wordlist.size();
         Guess guess = rand() % guesslist.size();
         auto wordlist_remaining = get_compatible_words(guess, get_hint(word, guess), wordlist);
         // auto SparseWordlist(wordlist_remaining);
         cout << "Estimating execution time. Trying " << get_guess(guess) << " on " << get_word(word) << " with " << wordlist_remaining.size() << " words remaining." << endl;
         find_optimal_strategy(wordlist_remaining, guesslist);
+        auto t01 = chrono::high_resolution_clock::now();
+        cout << "Done. Took " << chrono::duration_cast<chrono::milliseconds>(t01 - t00).count() << "ms." << endl;
     }
     auto t1 = chrono::high_resolution_clock::now();
     auto num_pairs = wordlist.size() * guesslist.size();

@@ -46,6 +46,7 @@ class DenseWordlist {
 private:
     bitset<N> data;
 public:
+    typedef Word value_type;
     DenseWordlist() {
         data.set();
     }

@@ -1,3 +1,5 @@
+#include <random>
+
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
@@ -50,24 +52,16 @@ string indentations(int n)
 }
 
 template<typename T>
-T sample(T& iterable, int n)
+T random_subset(T& iterable, int n)
 {
     // If n is the size of iterable, then we can just return iterable
-    if (n == iterable.size()) {
+    if (n >= iterable.size()) {
         return iterable;
     }
-    // Sample n elements from the iterable by setting elements to false
-    set<int> sampled_indices;
-    while (sampled_indices.size() < n) {
-        auto i = rand() % iterable.size();
-        if (iterable[i]) {
-            sampled_indices.insert(i);
-        }
-    }
-    vector<int> sampled_indices_vector(sampled_indices.begin(), sampled_indices.end());
-    // Set the sampled elements to false
-    T result(sampled_indices_vector);
-    return result;
+    // Sample n elements from iterable using std::sample
+    vector<int> iterable_vector = iterable;
+    std::shuffle(iterable_vector.begin(), iterable_vector.end(), std::default_random_engine(std::random_device{}()));
+    return iterable;
 }
 
 #endif // UTILS_HPP
